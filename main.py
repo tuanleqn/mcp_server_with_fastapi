@@ -1,9 +1,26 @@
 from fastapi import FastAPI
-from fastapi_mcp import FastApiMCP
-import sys
-import os
+import uvicorn
+import contextlib
 
-app = FastAPI(title="Simple API")
+from mcp_servers import echo, math
+
+app = FastAPI(
+    title="Simple FastAPI Service with MCP",
+)
+
+
+# Mount multiple FastMCP servers into the application
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with contextlib.AsyncExitStack() as stack:
+        await stack.enter_async_context(echo.mcp.session_manager.run())
+        await stack.enter_async_context(math.mcp.session_manager.run())
+        yield
+
+
+app = FastAPI(lifespan=lifespan)
+app.mount("/echo/", echo.mcp.streamable_http_app())
+app.mount("/math/", math.mcp.streamable_http_app())
 
 
 @app.get("/hello", operation_id="say_hello")
@@ -12,23 +29,5 @@ async def hello():
     return {"message": "Hello World"}
 
 
-# Expose MCP server
-mcp = FastApiMCP(app, name="Simple MCP Service")
-mcp.mount()
-
-
-def main():
-    print("Hello from mcp-server-with-fastapi!")
-
-
-def check():
-    print(f"Python interpreter: {sys.executable}")
-    print(f"Virtual environment active: {os.getenv('VIRTUAL_ENV') is not None}")
-
-
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-    main()
-    check()
+    uvicorn.run(app, host="localhost", port=8000, log_level="debug")

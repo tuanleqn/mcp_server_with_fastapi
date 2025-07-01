@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "echo_server": {
+      "type": "http",
+      "url": "http://localhost:8000/echo/mcp/"
+    },
+    "math_server": {
+      "type": "http",
+      "url": "http://localhost:8000/math/mcp/"
+    }
+  }
+}
