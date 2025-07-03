@@ -7,6 +7,10 @@
     "math_server": {
       "type": "http",
       "url": "http://localhost:8000/math/mcp/"
+    },
+    "db_server": {
+      "type": "http",
+      "url": "http://localhost:8000/db/mcp/"
     }
   }
 }
