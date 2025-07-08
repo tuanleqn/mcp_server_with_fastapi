@@ -1,9 +1,12 @@
-from json import load
 import os
 from typing import Any
 from fastapi import Request
 import jwt
+import psycopg2
+from psycopg2 import Error
 from dotenv import load_dotenv
+
+from mcp_servers.user_db import DB_URI
 
 load_dotenv()
 
@@ -38,6 +41,15 @@ def is_user_the_owner(user_id: int) -> bool:
     Returns:
         bool: True if the user is the owner, False otherwise.
     """
+    try:
+        with psycopg2.connect(DB_URI) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM public.users WHERE id = %s", (user_id,))
+                row = cur.fetchone()
+                return row is not None
+    except Error as e:
+        print(f"Database error: {e}")
+        return False
 
 
 def check_auth(payload: Any) -> bool:

@@ -6,7 +6,7 @@ import contextlib
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
-from mcp_servers import echo, math, user_db
+from mcp_servers import echo, finance_db, math, user_db
 
 load_dotenv()
 
@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
         await stack.enter_async_context(echo.mcp.session_manager.run())
         await stack.enter_async_context(math.mcp.session_manager.run())
         await stack.enter_async_context(user_db.mcp.session_manager.run())
+        # await stack.enter_async_context(finance_db.mcp.streamable_http_app())
 
         yield
 
@@ -29,6 +30,7 @@ app = FastAPI(
 app.mount("/echo/", echo.mcp.streamable_http_app(), name="echo")
 app.mount("/math/", math.mcp.streamable_http_app(), name="math")
 app.mount("/user_db/", user_db.mcp.streamable_http_app(), name="user_db")
+# app.mount("/finance_db/", finance_db.mcp.streamable_http_app(), name="finance_db")
 
 
 @app.get("/", tags=["Root"])
@@ -40,10 +42,12 @@ async def read_root():
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host=str(os.getenv("HOST")),
-        port=int(os.getenv("PORT", "8000")),
-        log_level=str(os.getenv("LOG_LV")),
-        reload=os.getenv("RELOAD", "False") == "True",
-    )
+    # uvicorn.run(
+    #     "main:app",
+    #     host=str(os.getenv("HOST", "localhost")),
+    #     port=int(os.getenv("PORT", "8000")),
+    #     log_level=str(os.getenv("LOG_LV", "info")),
+    #     reload=os.getenv("RELOAD", "False") == "True",
+    # )
+
+    uvicorn.run("main:app")
