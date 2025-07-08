@@ -10,7 +10,7 @@
     },
     "db_server": {
       "type": "http",
-      "url": "http://localhost:8000/db/mcp/"
+      "url": "https://mcp-server-with-fastapi.onrender.com/user_db/mcp/"
     }
   }
 }

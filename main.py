@@ -3,14 +3,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 import uvicorn
 import contextlib
+from starlette.applications import Starlette
+from starlette.routing import Mount
 
-from mcp_servers import db, echo, math
+from mcp_servers import echo, math, user_db
 
 load_dotenv()
-
-app = FastAPI(
-    title="Simple FastAPI Service with MCP",
-)
 
 
 @contextlib.asynccontextmanager
@@ -18,27 +16,34 @@ async def lifespan(app: FastAPI):
     async with contextlib.AsyncExitStack() as stack:
         await stack.enter_async_context(echo.mcp.session_manager.run())
         await stack.enter_async_context(math.mcp.session_manager.run())
-        await stack.enter_async_context(db.mcp.session_manager.run())
+        await stack.enter_async_context(user_db.mcp.session_manager.run())
+
         yield
 
 
-# Mount multiple FastMCP servers into the application
-app = FastAPI(lifespan=lifespan)
-app.mount("/echo/", echo.mcp.streamable_http_app())
-app.mount("/math/", math.mcp.streamable_http_app())
-app.mount("/db/", db.mcp.streamable_http_app())
+app = FastAPI(
+    title="Simple FastAPI with multiple FastMCP servers",
+    description="This is a simple FastAPI application that integrates multiple FastMCP servers for different functionalities.",
+    lifespan=lifespan,
+)
+app.mount("/echo/", echo.mcp.streamable_http_app(), name="echo")
+app.mount("/math/", math.mcp.streamable_http_app(), name="math")
+app.mount("/user_db/", user_db.mcp.streamable_http_app(), name="user_db")
 
 
-@app.get("/hello", operation_id="say_hello")
-async def hello():
-    """A simple greeting endpoint"""
-    return {"message": "Hello World"}
+@app.get("/", tags=["Root"])
+async def read_root():
+    """
+    Root endpoint that provides a welcome message.
+    """
+    return {"message": "Welcome to the FastAPI with multiple FastMCP servers!"}
 
 
 if __name__ == "__main__":
     uvicorn.run(
-        app,
-        host=os.getenv("HOST"),
-        port=int(os.getenv("PORT")),
-        log_level=os.getenv("LOG_LV"),
+        "main:app",
+        host=str(os.getenv("HOST")),
+        port=int(os.getenv("PORT") or 8000),
+        log_level=str(os.getenv("LOG_LV")),
+        reload=os.getenv("RELOAD", "False") == "True",
     )

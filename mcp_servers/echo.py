@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP(name="Echo MCP Server", version="0.0.1", stateless_http=True)
+mcp = FastMCP(name="Echo MCP Server", stateless_http=True)
 
 
 @mcp.tool(description="Echoes back the input string")
