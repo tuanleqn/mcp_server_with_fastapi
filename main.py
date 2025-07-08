@@ -43,7 +43,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host=str(os.getenv("HOST")),
-        port=int(os.getenv("PORT") or 8000),
+        port=int(os.getenv("PORT", "8000")),
         log_level=str(os.getenv("LOG_LV")),
         reload=os.getenv("RELOAD", "False") == "True",
     )
