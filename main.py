@@ -41,6 +41,39 @@ app.mount(
 )
 
 
+@app.middleware("http")
+async def get_payload_from_header(request, call_next):
+    """
+    Middleware to extract JWT payload from the request header.
+    """
+    from utils.auth import get_payload
+    from fastapi.responses import JSONResponse
+
+    payload = get_payload(request)
+    print(f"Extracted payload: {payload}")
+    if "error" in payload:
+        # Store the error but continue processing for non-protected routes
+        request.state.payload = {"authenticated": False, "error": payload["error"]}
+        # For protected routes, you might want to return a 401 response
+        # Uncomment the next lines if you want to block access to protected routes
+        # if request.url.path.startswith('/protected/'):
+        #    return JSONResponse(status_code=401, content={"detail": payload["error"]})
+    else:
+        request.state.payload = {"authenticated": True, **payload}
+
+    response = await call_next(request)
+    print(f"Request payload: {request.state.payload}")
+    print(f"Response status code: {response}")
+    return response
+
+
+from utils.auth import generate_token
+
+token = generate_token({"user_id": "12345", "role": "admin", "name": "Test User"})
+
+print(f"Generated token: {token}")
+
+
 @app.get("/", tags=["Root"])
 async def read_root():
     """

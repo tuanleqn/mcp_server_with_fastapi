@@ -13,18 +13,23 @@ def get_payload(req: Request) -> dict:
         return {"error": "Authorization header is missing"}
     if not auth.startswith("Bearer "):
         return {"error": "Authorization header must start with 'Bearer '"}
-    token = auth[7:]
+    token = auth[14:]
     try:
         payload = jwt.decode(
             token,
             os.getenv("AUTH_SECRET_KEY"),
-            algorithms=[os.getenv("AUTH_ALGORITHM") or ""],
+            algorithms=[os.getenv("AUTH_ALGORITHM") or "HS256"],
         )
+        print(f"Decoded payload: {payload}")
+        return payload
     except jwt.ExpiredSignatureError:
         return {"error": "Token has expired"}
+    except jwt.DecodeError:
+        return {"error": "Invalid token format"}
     except jwt.InvalidTokenError:
         return {"error": "Invalid token"}
-    return payload
+    except Exception as e:
+        return {"error": f"Authentication error: {str(e)}"}
 
 
 def get_role(payload: Any) -> str:
@@ -41,12 +46,38 @@ def get_user_id(payload: Any) -> str:
     return payload.get("user_id")
 
 
-def print_header(req: Request) -> None:
+def generate_token(payload: dict) -> str:
     """
-    Prints the Authorization header from the request.
+    Generates a JWT token from a payload dictionary.
+
+    Args:
+        payload: Dictionary containing the data to be encoded in the token
+
+    Returns:
+        str: The generated JWT token string
     """
-    auth = req.headers.get("Authorization", "")
-    if not auth:
-        print("Authorization header is missing")
-    else:
-        print(f"Authorization header: {auth}")
+    import jwt
+    import os
+    from datetime import datetime, timedelta
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    # Add expiration time if not provided
+    if "exp" not in payload:
+        # Default expiration time: 30 days
+        expiration = datetime.utcnow() + timedelta(days=30)
+        payload["exp"] = expiration
+
+    # Add issued at time if not provided
+    if "iat" not in payload:
+        payload["iat"] = datetime.utcnow()
+
+    # Generate the token
+    token = jwt.encode(
+        payload,
+        os.getenv("AUTH_SECRET_KEY"),
+        algorithm=os.getenv("AUTH_ALGORITHM") or "HS256",
+    )
+
+    return token
