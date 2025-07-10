@@ -11,7 +11,7 @@ DB_URI = os.getenv("USER_DB_URI", None)
 if not DB_URI:
     raise ValueError("Database URI not found in environment variables.")
 
-mcp = FastMCP(name="Database MCP Server", stateless_http=True)
+mcp = FastMCP(name="Database MCP Server")
 
 
 @mcp.tool(description="Query user data by name")
@@ -37,13 +37,38 @@ def query_user_data(user_name: str) -> dict:
         return {"error": str(e)}
 
 
+@mcp.tool(description="Query user data by email")
+def query_user_data_by_email(user_email: str) -> dict:
+    """
+    Retrieves user data from the database by user email.
+
+    Args:
+        user_email (str): The email of the user.
+    Returns:
+        dict: A dictionary containing user data.
+    """
+    try:
+        with psycopg2.connect(DB_URI) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT * FROM public.users WHERE email = %s", (user_email,)
+                )
+                row = cur.fetchone()
+                print(f"Fetched row: {row}")
+                if row is None:
+                    return {"error": "User not found"}
+                return {"id": row[0], "name": row[1], "email": row[2], "tool": row[4]}
+    except Error as e:
+        return {"error": str(e)}
+
+
 @mcp.tool(description="Update user data by ID")
-def update_user_data(user_id: int, name: str, email: str) -> dict:
+def update_user_data(user_id: str, name: str, email: str) -> dict:
     """
     Updates user data in the database by user ID.
 
     Args:
-        user_id (int): The ID of the user.
+        user_id (str): The ID of the user.
         name (str): The new name of the user.
         email (str): The new email of the user.
 

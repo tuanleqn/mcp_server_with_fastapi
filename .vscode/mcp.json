@@ -2,15 +2,15 @@
   "servers": {
     "echo_server": {
       "type": "http",
-      "url": "http://localhost:8000/echo/mcp/"
+      "url": "https://mcp-server-with-fastapi.onrender.com/echo/mcp/"
     },
     "math_server": {
       "type": "http",
-      "url": "http://localhost:8000/math/mcp/"
+      "url": "http://0.0.0.0:8000/math/mcp/"
     },
     "db_server": {
       "type": "http",
-      "url": "https://mcp-server-with-fastapi.onrender.com/user_db/mcp/"
+      "url": "http://0.0.0.0:8000/user_db/mcp/"
     }
   }
 }

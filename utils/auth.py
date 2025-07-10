@@ -2,16 +2,12 @@ import os
 from typing import Any
 from fastapi import Request
 import jwt
-import psycopg2
-from psycopg2 import Error
-from dotenv import load_dotenv
-
-from mcp_servers.user_db import DB_URI
-
-load_dotenv()
 
 
-def get_payload(req: Request):
+def get_payload(req: Request) -> dict:
+    """
+    Extracts and decodes the JWT payload from the request headers.
+    """
     auth = req.headers.get("Authorization", "")
     if not auth:
         return {"error": "Authorization header is missing"}
@@ -31,31 +27,26 @@ def get_payload(req: Request):
     return payload
 
 
-def is_user_the_owner(user_id: int) -> bool:
+def get_role(payload: Any) -> str:
     """
-    Check if the user is the owner of the resource.
-
-    Args:
-        user_id (int): The ID of the user to check.
-
-    Returns:
-        bool: True if the user is the owner, False otherwise.
+    Retrieves the role from the JWT payload.
     """
-    try:
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT id FROM public.users WHERE id = %s", (user_id,))
-                row = cur.fetchone()
-                return row is not None
-    except Error as e:
-        print(f"Database error: {e}")
-        return False
+    return payload.get("role")
 
 
-def check_auth(payload: Any) -> bool:
-    if payload.get("role") == "admin":
-        return True
-    if payload.get("role") == "user":
-        if is_user_the_owner(payload.get("id")):
-            return True
-    return False
+def get_user_id(payload: Any) -> str:
+    """
+    Retrieves the user ID from the JWT payload.
+    """
+    return payload.get("user_id")
+
+
+def print_header(req: Request) -> None:
+    """
+    Prints the Authorization header from the request.
+    """
+    auth = req.headers.get("Authorization", "")
+    if not auth:
+        print("Authorization header is missing")
+    else:
+        print(f"Authorization header: {auth}")

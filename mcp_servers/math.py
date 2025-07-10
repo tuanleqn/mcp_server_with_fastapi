@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP(name="Math MCP Server", stateless_http=True)
+mcp = FastMCP(name="Math MCP Server")
 
 
 @mcp.tool(description="Adds two numbers")
@@ -15,4 +15,5 @@ def add(a: float, b: float) -> float:
     Returns:
         float: The sum of the two numbers.
     """
+
     return a + b
