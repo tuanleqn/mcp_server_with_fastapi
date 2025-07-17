@@ -3,7 +3,19 @@ from fastapi import FastAPI
 import uvicorn
 import contextlib
 
-from mcp_servers import echo, math, user_db, finance_db_company, finance_db_stock_price
+from mcp_servers import (
+    echo,
+    math,
+    user_db,
+    finance_db_company,
+    finance_db_stock_price,
+    finance_db_market_analysis,
+    finance_analysis_and_predictions,
+    finance_plotting,
+    # finance_news_and_insights,
+    finance_calculations,
+    finance_portfolio,
+)
 
 load_dotenv()
 
@@ -18,6 +30,18 @@ async def lifespan(app: FastAPI):
         await stack.enter_async_context(
             finance_db_stock_price.mcp.session_manager.run()
         )
+        await stack.enter_async_context(
+            finance_db_market_analysis.mcp.session_manager.run()
+        )
+        await stack.enter_async_context(
+            finance_analysis_and_predictions.mcp.session_manager.run()
+        )
+        await stack.enter_async_context(finance_plotting.mcp.session_manager.run())
+        # await stack.enter_async_context(
+        #     finance_news_and_insights.mcp.session_manager.run()
+        # )
+        await stack.enter_async_context(finance_calculations.mcp.session_manager.run())
+        await stack.enter_async_context(finance_portfolio.mcp.session_manager.run())
 
         yield
 
@@ -38,6 +62,37 @@ app.mount(
     "/finance_db_stock_price/",
     finance_db_stock_price.mcp.streamable_http_app(),
     name="finance_db_stock_price",
+)
+app.mount(
+    "/finance_db_market_analysis/",
+    finance_db_market_analysis.mcp.streamable_http_app(),
+    name="finance_db_market_analysis",
+)
+app.mount(
+    "/finance_analysis_and_predictions/",
+    finance_analysis_and_predictions.mcp.streamable_http_app(),
+    name="finance_analysis_and_predictions",
+)
+app.mount(
+    "/finance_plotting/",
+    finance_plotting.mcp.streamable_http_app(),
+    name="finance_plotting",
+)
+# app.mount(
+#     "/finance_news_and_insights/",
+#     finance_news_and_insights.mcp.streamable_http_app(),
+#     name="finance_news_and_insights",
+# )
+
+app.mount(
+    "/finance_calculations/",
+    finance_calculations.mcp.streamable_http_app(),
+    name="finance_calculations",
+)
+app.mount(
+    "/finance_portfolio/",
+    finance_portfolio.mcp.streamable_http_app(),
+    name="finance_portfolio",
 )
 
 
