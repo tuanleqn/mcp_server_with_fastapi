@@ -195,4 +195,4 @@ def remove_stock_holding(user_id: int, symbol: str, quantity_to_remove: int = No
     except Error as e:
         return {"error": f"Database error: {str(e)}"}
     except Exception as e:
-        return {"error": f"Failed to remove stock holding: {str(e)}"}f
+        return {"error": f"Failed to remove stock holding: {str(e)}"}

@@ -8,7 +8,7 @@ This project implements a FastAPI application that mounts multiple MCP servers:
 - **Echo Server**: A simple server that echoes back input strings
 - **Math Server**: Provides basic mathematical operations
 - **Database Server**: Connects to a PostgreSQL database to query user data
-- **[Comming Soon]**: ...
+- **[Coming Soon]**: ...
 
 ## Prerequisites
 
