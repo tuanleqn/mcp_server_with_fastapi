@@ -5,6 +5,7 @@ from psycopg2 import Error
 from dotenv import load_dotenv
 from datetime import datetime
 from decimal import Decimal
+import numpy as np
 
 # Assuming finance_db_stock_price.py is available for direct calls or through MCP
 # For simplicity, we'll re-implement the DB connection here or assume it's imported.
