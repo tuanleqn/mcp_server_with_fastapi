@@ -5,6 +5,12 @@ from psycopg2 import Error
 from dotenv import load_dotenv
 from datetime import datetime
 from decimal import Decimal
+import sys
+import traceback
+
+# Add utils to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.auth_utils import require_auth, check_permission, ensure_user_scope
 
 load_dotenv()
 
@@ -34,9 +40,10 @@ def _get_latest_close_price(symbol: str) -> Decimal:
 
 
 @mcp.tool(description="Adds a stock holding to a user's portfolio.")
-def add_stock_holding(user_id: int, symbol: str, quantity: int, purchase_price: float, purchase_date: str) -> dict:
+def add_stock_holding(user_id: int, symbol: str, quantity: int, purchase_price: float, purchase_date: str, auth_token: str = None) -> dict:
     """
     Adds a specified quantity of a stock to a user's portfolio at a given purchase price and date.
+    Users can only add holdings to their own portfolio unless they are an admin.
 
     Args:
         user_id (int): The ID of the user.
@@ -44,15 +51,40 @@ def add_stock_holding(user_id: int, symbol: str, quantity: int, purchase_price: 
         quantity (int): The number of shares purchased.
         purchase_price (float): The price per share at the time of purchase.
         purchase_date (str): The date of purchase in YYYY-MM-DD format.
+        auth_token (str): Authentication token (required)
 
     Returns:
         dict: A dictionary indicating success or failure.
     """
+    # Apply authentication decorator logic manually
+    if not auth_token:
+        return {"error": "Authentication required", "code": "AUTH_REQUIRED"}
+    
     try:
+        from utils.auth_utils import verify_token, get_user_info, check_user_permission
+        
+        # Verify token and get user info
+        user_info = verify_token(auth_token)
+        auth_user_id = user_info["user_id"]
+        
+        # Get full user info from database
+        db_user_info = get_user_info(auth_user_id)
+        if not db_user_info:
+            return {"error": "User not found", "code": "USER_NOT_FOUND"}
+        
+        is_admin = db_user_info.get("is_admin", False)
+        
+        # Check if user can access this user_id
+        if not check_user_permission(auth_user_id, user_id, is_admin):
+            return {
+                "error": f"Access denied. You can only add holdings to your own portfolio (user_id: {auth_user_id})",
+                "code": "ACCESS_DENIED"
+            }
+        
         # Validate user_id exists (optional but good practice)
         with psycopg2.connect(USER_DB_URI) as conn_user:
             with conn_user.cursor() as cur_user:
-                cur_user.execute("SELECT id FROM public.\"USERS\" WHERE id = %s", (user_id,))
+                cur_user.execute("SELECT id FROM users WHERE id = %s", (user_id,))
                 if not cur_user.fetchone():
                     return {"error": f"User with ID {user_id} not found."}
 
@@ -89,25 +121,54 @@ def add_stock_holding(user_id: int, symbol: str, quantity: int, purchase_price: 
                     )
                     conn.commit()
                     return {"success": True, "message": f"Added {quantity} shares of {symbol} for user {user_id}."}
+                    
+    except Exception as e:
+        return {"error": f"Authentication failed: {str(e)}", "code": "AUTH_ERROR"}
     except Error as e:
         return {"error": f"Database error: {str(e)}"}
     except Exception as e:
         return {"error": f"Failed to add stock holding: {str(e)}"}
 
 @mcp.tool(description="Retrieves all stock holdings for a given user.")
-def get_user_portfolio(user_id: int) -> dict:
+def get_user_portfolio(user_id: int, auth_token: str = None) -> dict:
     """
     Retrieves all stock holdings for a specific user, including current market value.
+    Users can only view their own portfolio unless they are an admin.
 
     Args:
         user_id (int): The ID of the user.
+        auth_token (str): Authentication token (required)
 
     Returns:
         dict: A dictionary containing the user's portfolio details.
               Each holding includes symbol, quantity, purchase price, current price, and current value.
               Also includes total portfolio value.
     """
+    # Apply authentication
+    if not auth_token:
+        return {"error": "Authentication required", "code": "AUTH_REQUIRED"}
+    
     try:
+        from utils.auth_utils import verify_token, get_user_info, check_user_permission
+        
+        # Verify token and get user info
+        user_info = verify_token(auth_token)
+        auth_user_id = user_info["user_id"]
+        
+        # Get full user info from database
+        db_user_info = get_user_info(auth_user_id)
+        if not db_user_info:
+            return {"error": "User not found", "code": "USER_NOT_FOUND"}
+        
+        is_admin = db_user_info.get("is_admin", False)
+        
+        # Check if user can access this user_id
+        if not check_user_permission(auth_user_id, user_id, is_admin):
+            return {
+                "error": f"Access denied. You can only view your own portfolio (user_id: {auth_user_id})",
+                "code": "ACCESS_DENIED"
+            }
+
         holdings = []
         total_portfolio_value = Decimal('0.0')
 
@@ -142,8 +203,16 @@ def get_user_portfolio(user_id: int) -> dict:
         return {
             "user_id": user_id,
             "holdings": holdings,
-            "total_portfolio_value": float(total_portfolio_value)
+            "total_portfolio_value": float(total_portfolio_value),
+            "access_info": {
+                "accessed_by": auth_user_id,
+                "is_admin_access": is_admin,
+                "access_allowed": True
+            }
         }
+        
+    except Exception as e:
+        return {"error": f"Authentication failed: {str(e)}", "code": "AUTH_ERROR"}
     except Error as e:
         return {"error": f"Database error: {str(e)}"}
     except Exception as e:

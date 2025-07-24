@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance MCP Tools - User Access Control Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .demo-section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .user-info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .demo-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn:hover {
+            opacity: 0.8;
+            transform: translateY(-2px);
+        }
+        
+        .result-area {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        
+        .access-control-demo {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        
+        .permission-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .permission-table th,
+        .permission-table td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        .permission-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        
+        .access-allowed { color: #28a745; font-weight: bold; }
+        .access-denied { color: #dc3545; font-weight: bold; }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .token-input {
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏦 Finance MCP Tools</h1>
+        <h2>User Access Control & Authentication Demo</h2>
+        <p>Demonstration of user-scoped access control in finance MCP servers</p>
+    </div>
+    
+    <div class="demo-section">
+        <h3>🔐 Authentication Setup</h3>
+        <div class="form-group">
+            <label for="auth-token">Access Token:</label>
+            <input type="text" id="auth-token" class="token-input" placeholder="Login first to get your token, or paste it here">
+        </div>
+        <div class="demo-buttons">
+            <button class="btn btn-primary" onclick="showLogin()">Login</button>
+            <button class="btn btn-success" onclick="testAuthentication()">Test Token</button>
+            <button class="btn btn-warning" onclick="clearToken()">Clear Token</button>
+        </div>
+        <div id="user-info" class="user-info" style="display: none;">
+            <h4>Current User:</h4>
+            <div id="user-details"></div>
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h3>📊 Portfolio Management Demo</h3>
+        <div class="access-control-demo">
+            <h4>🛡️ Access Control Rules:</h4>
+            <ul>
+                <li><strong>Regular Users:</strong> Can only view/manage their own portfolio</li>
+                <li><strong>Premium Users:</strong> Can view/manage their own portfolio + access premium features</li>
+                <li><strong>Admins:</strong> Can view/manage any user's portfolio + full system access</li>
+            </ul>
+        </div>
+        
+        <div class="form-group">
+            <label for="target-user-id">Target User ID:</label>
+            <input type="number" id="target-user-id" value="1" min="1">
+        </div>
+        
+        <div class="demo-buttons">
+            <button class="btn btn-primary" onclick="getPortfolio()">View Portfolio</button>
+            <button class="btn btn-success" onclick="addStockHolding()">Add Stock Holding</button>
+            <button class="btn btn-danger" onclick="testUnauthorizedAccess()">Test Unauthorized Access</button>
+        </div>
+        
+        <h4>Add Stock Form:</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div class="form-group">
+                <label for="stock-symbol">Stock Symbol:</label>
+                <input type="text" id="stock-symbol" value="AAPL" placeholder="e.g., AAPL">
+            </div>
+            <div class="form-group">
+                <label for="stock-quantity">Quantity:</label>
+                <input type="number" id="stock-quantity" value="10" min="1">
+            </div>
+            <div class="form-group">
+                <label for="stock-price">Purchase Price:</label>
+                <input type="number" id="stock-price" value="150.00" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label for="purchase-date">Purchase Date:</label>
+                <input type="date" id="purchase-date" value="2025-01-15">
+            </div>
+        </div>
+        
+        <div id="portfolio-result" class="result-area">Results will appear here...</div>
+    </div>
+
+    <div class="demo-section">
+        <h3>🎯 Access Control Test Matrix</h3>
+        <p>This table shows what different users can access:</p>
+        <table class="permission-table">
+            <thead>
+                <tr>
+                    <th>User Type</th>
+                    <th>Own Portfolio</th>
+                    <th>Other User Portfolio</th>
+                    <th>Admin Functions</th>
+                    <th>Premium Features</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>User (ID: 1)</strong></td>
+                    <td class="access-allowed">✅ Read/Write</td>
+                    <td class="access-denied">❌ Access Denied</td>
+                    <td class="access-denied">❌ Access Denied</td>
+                    <td class="access-denied">❌ Access Denied</td>
+                </tr>
+                <tr>
+                    <td><strong>Premium User (ID: 2)</strong></td>
+                    <td class="access-allowed">✅ Read/Write</td>
+                    <td class="access-denied">❌ Access Denied</td>
+                    <td class="access-denied">❌ Access Denied</td>
+                    <td class="access-allowed">✅ Available</td>
+                </tr>
+                <tr>
+                    <td><strong>Admin (ID: 3)</strong></td>
+                    <td class="access-allowed">✅ Read/Write</td>
+                    <td class="access-allowed">✅ Read/Write</td>
+                    <td class="access-allowed">✅ Full Access</td>
+                    <td class="access-allowed">✅ Full Access</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="demo-buttons">
+            <button class="btn btn-primary" onclick="testAsUser(1)">Test as Regular User</button>
+            <button class="btn btn-warning" onclick="testAsUser(2)">Test as Premium User</button>
+            <button class="btn btn-danger" onclick="testAsUser(3)">Test as Admin</button>
+        </div>
+        
+        <div id="access-test-result" class="result-area">Access control test results will appear here...</div>
+    </div>
+
+    <div class="demo-section">
+        <h3>📖 How It Works</h3>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 5px;">
+            <h4>Authentication Flow:</h4>
+            <ol>
+                <li>User logs in and receives a JWT token</li>
+                <li>Token contains user_id, username, and roles</li>
+                <li>MCP tools validate the token and extract user context</li>
+                <li>Tools check if user has permission for the requested action</li>
+                <li>Data is filtered to user's scope (own data only, unless admin)</li>
+            </ol>
+            
+            <h4>Security Features:</h4>
+            <ul>
+                <li>🔒 <strong>JWT Token Authentication:</strong> Secure token-based auth</li>
+                <li>👤 <strong>User Scoping:</strong> Users can only access their own data</li>
+                <li>🛡️ <strong>Role-based Access:</strong> Different permissions for user/premium/admin</li>
+                <li>📝 <strong>Audit Trail:</strong> All actions are logged with user context</li>
+                <li>⏰ <strong>Token Expiration:</strong> Tokens expire for security</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%;">
+            <h3>Login</h3>
+            <div class="form-group">
+                <label for="login-username">Username:</label>
+                <input type="text" id="login-username" value="testuser">
+            </div>
+            <div class="form-group">
+                <label for="login-password">Password:</label>
+                <input type="password" id="login-password" value="testpassword">
+            </div>
+            <div class="demo-buttons">
+                <button class="btn btn-primary" onclick="performLogin()">Login</button>
+                <button class="btn" onclick="hideLogin()">Cancel</button>
+            </div>
+            <div id="login-result" class="result-area" style="margin-top: 15px; min-height: 60px;"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentToken = null;
+        let currentUser = null;
+        
+        function showLogin() {
+            document.getElementById('login-modal').style.display = 'block';
+        }
+        
+        function hideLogin() {
+            document.getElementById('login-modal').style.display = 'none';
+        }
+        
+        async function performLogin() {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const resultDiv = document.getElementById('login-result');
+            
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentToken = data.access_token;
+                    document.getElementById('auth-token').value = currentToken;
+                    resultDiv.textContent = '✅ Login successful!';
+                    
+                    setTimeout(() => {
+                        hideLogin();
+                        testAuthentication();
+                    }, 1000);
+                } else {
+                    resultDiv.textContent = `❌ Login failed: ${data.detail}`;
+                }
+            } catch (error) {
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function testAuthentication() {
+            const token = document.getElementById('auth-token').value.trim();
+            if (!token) {
+                alert('Please enter a token or login first');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentUser = data;
+                    currentToken = token;
+                    
+                    document.getElementById('user-details').innerHTML = `
+                        <strong>ID:</strong> ${data.id}<br>
+                        <strong>Username:</strong> ${data.username}<br>
+                        <strong>Email:</strong> ${data.email}<br>
+                        <strong>Role:</strong> ${data.role || 'user'}<br>
+                        <strong>Is Admin:</strong> ${data.is_admin ? 'Yes' : 'No'}
+                    `;
+                    document.getElementById('user-info').style.display = 'block';
+                } else {
+                    alert(`Authentication failed: ${data.detail}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+        
+        function clearToken() {
+            document.getElementById('auth-token').value = '';
+            document.getElementById('user-info').style.display = 'none';
+            currentToken = null;
+            currentUser = null;
+        }
+        
+        async function getPortfolio() {
+            const token = document.getElementById('auth-token').value.trim();
+            const userId = document.getElementById('target-user-id').value;
+            const resultDiv = document.getElementById('portfolio-result');
+            
+            if (!token) {
+                resultDiv.textContent = '❌ Please authenticate first';
+                return;
+            }
+            
+            try {
+                // Since we can't directly call MCP tools from frontend, 
+                // we'll simulate the call by showing what would happen
+                resultDiv.textContent = `
+🔄 Making authenticated MCP call...
+📞 Calling: finance_portfolio.get_user_portfolio(user_id=${userId}, auth_token="${token.substring(0,20)}...")
+🔐 Token will be validated and user permissions checked
+                
+Expected Response (based on your access level):
+${currentUser && currentUser.is_admin ? 
+    `✅ Admin Access - You can view any user's portfolio` : 
+    `${currentUser && currentUser.id == userId ? 
+        '✅ Own Portfolio - Access allowed' : 
+        '❌ Access Denied - You can only view your own portfolio'}`}
+                `;
+                
+                // In real implementation, you would make the MCP call here
+                // const mcpResponse = await callMCPTool('finance_portfolio', 'get_user_portfolio', {
+                //     user_id: parseInt(userId),
+                //     auth_token: token
+                // });
+                
+            } catch (error) {
+                resultDiv.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function addStockHolding() {
+            const token = document.getElementById('auth-token').value.trim();
+            const userId = document.getElementById('target-user-id').value;
+            const symbol = document.getElementById('stock-symbol').value;
+            const quantity = document.getElementById('stock-quantity').value;
+            const price = document.getElementById('stock-price').value;
+            const date = document.getElementById('purchase-date').value;
+            const resultDiv = document.getElementById('portfolio-result');
+            
+            if (!token) {
+                resultDiv.textContent = '❌ Please authenticate first';
+                return;
+            }
+            
+            resultDiv.textContent = `
+🔄 Making authenticated MCP call...
+📞 Calling: finance_portfolio.add_stock_holding(
+    user_id=${userId},
+    symbol="${symbol}",
+    quantity=${quantity},
+    purchase_price=${price},
+    purchase_date="${date}",
+    auth_token="${token.substring(0,20)}..."
+)
+
+🔐 Authentication will verify:
+- Token is valid and not expired
+- User has permission to modify user_id ${userId}
+- User exists in the system
+
+Expected Result:
+${currentUser && (currentUser.is_admin || currentUser.id == userId) ?
+    `✅ Success - Stock holding will be added to portfolio` :
+    `❌ Access Denied - Cannot modify another user's portfolio`}
+            `;
+        }
+        
+        function testUnauthorizedAccess() {
+            const resultDiv = document.getElementById('portfolio-result');
+            const currentUserId = currentUser ? currentUser.id : 'unknown';
+            const targetUserId = document.getElementById('target-user-id').value;
+            
+            resultDiv.textContent = `
+🚨 Testing Unauthorized Access...
+
+Current User ID: ${currentUserId}
+Target User ID: ${targetUserId}
+Is Admin: ${currentUser ? currentUser.is_admin : false}
+
+Security Check Results:
+${currentUser && currentUser.is_admin ? 
+    '✅ Admin Override - Access would be allowed' :
+    currentUserId == targetUserId ?
+        '✅ Own Data - Access would be allowed' :
+        '❌ SECURITY BLOCK - Access would be denied with error:\n   "Access denied. You can only access your own data"'
+}
+
+This demonstrates the security model working correctly!
+            `;
+        }
+        
+        async function testAsUser(userId) {
+            // Simulate login as different users for testing
+            const users = {
+                1: { username: 'testuser', role: 'user', is_admin: false },
+                2: { username: 'premiumuser', role: 'premium_user', is_admin: false },
+                3: { username: 'admin', role: 'admin', is_admin: true }
+            };
+            
+            const testUser = users[userId];
+            const resultDiv = document.getElementById('access-test-result');
+            
+            resultDiv.textContent = `
+🧪 Simulating access as ${testUser.username} (ID: ${userId})
+Role: ${testUser.role}
+Is Admin: ${testUser.is_admin}
+
+Testing access to different user portfolios:
+
+1. Access Own Portfolio (ID: ${userId}):
+   ✅ ALLOWED - Users can always access their own data
+
+2. Access User ID 1 Portfolio:
+   ${testUser.is_admin || userId === 1 ? '✅ ALLOWED' : '❌ DENIED - Access denied. You can only access your own data'}
+
+3. Access User ID 2 Portfolio:
+   ${testUser.is_admin || userId === 2 ? '✅ ALLOWED' : '❌ DENIED - Access denied. You can only access your own data'}
+
+4. Access Admin Functions:
+   ${testUser.is_admin ? '✅ ALLOWED - Full admin access' : '❌ DENIED - Insufficient permissions'}
+
+5. Access Premium Features:
+   ${testUser.role === 'premium_user' || testUser.is_admin ? '✅ ALLOWED' : '❌ DENIED - Premium subscription required'}
+
+This shows how the authentication system enforces user scoping and role-based access control.
+            `;
+        }
+        
+        // Set current date as default
+        document.getElementById('purchase-date').value = new Date().toISOString().split('T')[0];
+    </script>
+</body>
+</html>

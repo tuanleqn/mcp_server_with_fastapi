@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chatbot with Authentication</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .auth-section {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .chat-section {
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #fafafa;
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 70%;
+        }
+        
+        .user-message {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .bot-message {
+            background: #e3f2fd;
+            color: #333;
+        }
+        
+        .chat-input {
+            display: flex;
+            padding: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+        }
+        
+        .chat-input button {
+            margin-left: 10px;
+            padding: 12px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+        }
+        
+        .auth-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .auth-form input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .user-info {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .error-info {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Simple Chatbot</h1>
+            <p>Authentication-protected chatbot interface</p>
+        </div>
+        
+        <div class="auth-section">
+            <div id="login-form" class="auth-form">
+                <input type="text" id="username" placeholder="Username" value="testuser">
+                <input type="password" id="password" placeholder="Password" value="testpassword">
+                <button class="btn btn-primary" onclick="login()">Login</button>
+                <button class="btn btn-secondary" onclick="showSignup()">Sign Up</button>
+            </div>
+            
+            <div id="signup-form" class="auth-form hidden">
+                <input type="text" id="signup-username" placeholder="Username">
+                <input type="email" id="signup-email" placeholder="Email">
+                <input type="text" id="signup-fullname" placeholder="Full Name">
+                <input type="password" id="signup-password" placeholder="Password">
+                <button class="btn btn-primary" onclick="signup()">Create Account</button>
+                <button class="btn btn-secondary" onclick="showLogin()">Back to Login</button>
+            </div>
+            
+            <div id="user-info" class="user-info hidden">
+                <span id="user-details"></span>
+                <button class="btn btn-secondary" onclick="logout()" style="float: right;">Logout</button>
+            </div>
+            
+            <div id="auth-message"></div>
+        </div>
+        
+        <div class="chat-section">
+            <div id="chat-messages" class="chat-messages">
+                <div class="bot-message message">
+                    <div>Welcome! Please login to start chatting.</div>
+                    <div class="timestamp">System Message</div>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <input type="text" id="message-input" placeholder="Type your message..." disabled>
+                <button id="send-button" onclick="sendMessage()" disabled>Send</button>
+            </div>
+        </div>
+        
+        <div style="padding: 20px; background: #f8f9fa;">
+            <h3>Features:</h3>
+            <ul>
+                <li>🔐 <strong>Authentication:</strong> Login/signup required</li>
+                <li>💬 <strong>Chat:</strong> Send messages and get responses</li>
+                <li>📝 <strong>Query Logs:</strong> All queries are logged to database</li>
+                <li>📚 <strong>History:</strong> Chat history persisted per user</li>
+                <li>🛡️ <strong>User Scoped:</strong> Each user sees only their own data</li>
+            </ul>
+            
+            <div style="margin-top: 15px;">
+                <button class="btn btn-secondary" onclick="loadChatHistory()">Load Chat History</button>
+                <button class="btn btn-secondary" onclick="clearChat()">Clear Chat</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        let currentUser = null;
+        
+        function showLogin() {
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('signup-form').classList.add('hidden');
+        }
+        
+        function showSignup() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('signup-form').classList.remove('hidden');
+        }
+        
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    authToken = data.access_token;
+                    currentUser = data.user;
+                    
+                    document.getElementById('user-details').textContent = 
+                        `Logged in as: ${currentUser.username} (${currentUser.email})`;
+                    document.getElementById('user-info').classList.remove('hidden');
+                    document.getElementById('login-form').classList.add('hidden');
+                    document.getElementById('signup-form').classList.add('hidden');
+                    document.getElementById('auth-message').innerHTML = 
+                        '<div class="user-info">✅ Login successful!</div>';
+                    
+                    // Enable chat
+                    document.getElementById('message-input').disabled = false;
+                    document.getElementById('send-button').disabled = false;
+                    document.getElementById('message-input').placeholder = 'Type your message...';
+                    
+                    addBotMessage("Hello! I'm ready to chat. How can I help you today?");
+                    
+                } else {
+                    document.getElementById('auth-message').innerHTML = 
+                        `<div class="error-info">❌ Login failed: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('auth-message').innerHTML = 
+                    `<div class="error-info">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function signup() {
+            const username = document.getElementById('signup-username').value;
+            const email = document.getElementById('signup-email').value;
+            const full_name = document.getElementById('signup-fullname').value;
+            const password = document.getElementById('signup-password').value;
+            
+            try {
+                const response = await fetch('/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, full_name, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('auth-message').innerHTML = 
+                        '<div class="user-info">✅ Account created! Please login.</div>';
+                    showLogin();
+                    document.getElementById('username').value = username;
+                } else {
+                    document.getElementById('auth-message').innerHTML = 
+                        `<div class="error-info">❌ Signup failed: ${data.detail}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('auth-message').innerHTML = 
+                    `<div class="error-info">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            
+            document.getElementById('user-info').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('auth-message').innerHTML = 
+                '<div class="user-info">👋 Logged out successfully</div>';
+            
+            // Disable chat
+            document.getElementById('message-input').disabled = true;
+            document.getElementById('send-button').disabled = true;
+            document.getElementById('message-input').placeholder = 'Please login to chat...';
+            
+            // Clear chat
+            clearChat();
+            addBotMessage("Please login to start chatting.");
+        }
+        
+        async function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            
+            if (!message || !authToken) return;
+            
+            // Add user message to chat
+            addUserMessage(message);
+            messageInput.value = '';
+            
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ message })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addBotMessage(data.response, data.timestamp);
+                } else {
+                    addBotMessage(`Error: ${data.detail}`, null, true);
+                }
+            } catch (error) {
+                addBotMessage(`Network error: ${error.message}`, null, true);
+            }
+        }
+        
+        function addUserMessage(message) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user-message';
+            messageDiv.innerHTML = `
+                <div>${message}</div>
+                <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function addBotMessage(message, timestamp = null, isError = false) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message bot-message ${isError ? 'error-info' : ''}`;
+            messageDiv.innerHTML = `
+                <div>${message}</div>
+                <div class="timestamp">${timestamp ? new Date(timestamp).toLocaleString() : new Date().toLocaleTimeString()}</div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        async function loadChatHistory() {
+            if (!authToken) {
+                addBotMessage("Please login to load chat history.", null, true);
+                return;
+            }
+            
+            try {
+                const response = await fetch('/chat/history?limit=10', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.length > 0) {
+                    clearChat();
+                    addBotMessage("Chat history loaded:");
+                    
+                    // Add messages in chronological order
+                    data.reverse().forEach(chat => {
+                        if (chat.message) {
+                            addUserMessage(chat.message);
+                        }
+                        if (chat.response) {
+                            addBotMessage(chat.response, chat.timestamp);
+                        }
+                    });
+                } else {
+                    addBotMessage("No chat history found or error loading history.");
+                }
+            } catch (error) {
+                addBotMessage(`Error loading history: ${error.message}`, null, true);
+            }
+        }
+        
+        function clearChat() {
+            document.getElementById('chat-messages').innerHTML = '';
+        }
+        
+        // Enter key to send message
+        document.getElementById('message-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
