@@ -70,7 +70,7 @@ def get_latest_price(symbol: str):
 
 @mcp.tool(description="Get historical stock prices for a symbol")
 def get_historical_prices(
-    symbol: str, start_date: str = None, end_date: str = None, limit: int = 100
+    symbol: str, start_date: str = "", end_date: str = "", limit: int = 100
 ):
     """
     Get historical stock prices for a specific period
