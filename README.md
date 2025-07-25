@@ -9,7 +9,6 @@ This project implements a production-ready FastAPI application that mounts multi
 ### Core Tools
 - **Echo Server**: Simple echo functionality for testing
 - **Math Server**: Mathematical operations and calculations
-- **User Database Server**: User authentication and data management
 
 ### Finance Tools
 - **Company Database**: Company information and financial data
@@ -24,7 +23,7 @@ This project implements a production-ready FastAPI application that mounts multi
 ## Prerequisites
 
 - Python 3.12 or higher
-- PostgreSQL database (for finance and user data)
+- PostgreSQL database (for finance data)
 - UV package manager for dependency management
 
 ## Installation
@@ -49,12 +48,7 @@ uv sync
 ## Database Setup
 
 1. Create a PostgreSQL database for the application
-2. Run the database setup script:
-```bash
-psql -d your_database -f database_setup.sql
-```
-
-This will create the necessary tables for user authentication and sample data.
+2. Set up your finance database tables according to your schema requirements
 
 ## Configuration
 
@@ -63,7 +57,7 @@ Create a `.env` file in the root directory with the following variables:
 HOST=localhost
 PORT=8000
 LOG_LV=debug
-DB_URI=postgresql://username:password@localhost:5432/your_finance_db
+FINANCE_DB_URI=postgresql://username:password@localhost:5432/your_finance_db
 ```
 
 Replace `username`, `password`, and `your_finance_db` with your actual PostgreSQL credentials and database name.
@@ -88,7 +82,6 @@ The server will start on `http://127.0.0.1:8000` with auto-reload enabled for de
 ### MCP Tool Endpoints
 - `/echo/` - Echo server tools
 - `/math/` - Mathematical operations
-- `/user_db/` - User database operations
 - `/finance_db_company/` - Company data queries
 - `/finance_db_stock_price/` - Stock price data
 - `/finance_data_ingestion/` - Data import tools
@@ -106,14 +99,11 @@ The server includes auto-reload functionality for development. Access the intera
 
 ```
 ├── main.py                 # FastAPI application entry point
-├── database_setup.sql      # Database schema and sample data
 ├── mcp_servers/           # Individual MCP server implementations
 │   ├── echo.py
 │   ├── math.py
-│   ├── user_db.py
+│   ├── user_db.py         # Standalone user database MCP server
 │   └── finance_*.py       # Finance-specific MCP servers
-├── utils/                 # Utility modules
-│   └── auth.py           # Authentication utilities
 ├── static/               # Static files (if needed)
 ├── pyproject.toml        # Project configuration
 └── .env                  # Environment variables (create this)
