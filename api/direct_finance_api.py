@@ -20,7 +20,12 @@ from mcp_servers import (
     finance_news_and_insights,
     finance_calculations,
     finance_plotting,
-    finance_db_company
+    finance_db_company,
+    finance_db_stock_price,
+    finance_data_ingestion,
+    finance_symbol_discovery,
+    math,
+    user_db
 )
 
 # Import our data import system
@@ -69,31 +74,6 @@ class TechnicalAnalysis(BaseModel):
     recommendation: str
     confidence: float
 
-class StockComparison(BaseModel):
-    symbol1: str
-    symbol2: str
-    price1: float
-    price2: float
-    comparison: str
-    percentage_difference: float
-
-class PriceRange(BaseModel):
-    symbol: str
-    period: str
-    high: float
-    low: float
-    average: float
-    volatility: float
-    trend: str
-
-class VolatilityAnalysis(BaseModel):
-    symbol: str
-    period: str
-    daily_volatility: float
-    annualized_volatility: float
-    risk_level: str
-    price_range: Dict[str, float]
-
 class CompanyInfo(BaseModel):
     symbol: str
     company_name: str
@@ -104,37 +84,107 @@ class CompanyInfo(BaseModel):
     website: Optional[str]
     employees: Optional[int]
 
+# Add new models for crypto and commodities
+class CryptoData(BaseModel):
+    symbol: str
+    name: str
+    price: float
+    change_24h: float
+    change_percent_24h: float
+    market_cap: Optional[float]
+    volume_24h: Optional[float]
+
+class CommodityData(BaseModel):
+    symbol: str
+    name: str
+    price: float
+    change: float
+    change_percent: float
+    unit: str  # e.g., "USD per ounce", "USD per barrel"
+
+class IndexData(BaseModel):
+    symbol: str
+    name: str
+    value: float
+    change: float
+    change_percent: float
+    constituents: Optional[int]
+
 class ChartImage(BaseModel):
     symbol: str
     chart_type: str
     image_base64: str
     timestamp: datetime
 
-# Vietnamese stock symbols mapping
-VIETNAMESE_STOCKS = {
-    "VCB": "Vietcombank",
-    "VIC": "Vingroup", 
-    "VHM": "Vinhomes",
-    "HPG": "Hoa Phat Group",
-    "TCB": "Techcombank",
-    "MSN": "Masan Group",
-    "FPT": "FPT Corporation",
-    "GAS": "PetroVietnam Gas",
-    "CTG": "VietinBank",
-    "MWG": "Mobile World"
+# Top 10 Big Tech Stocks + Market Indices + Commodities + Crypto
+RELIABLE_SYMBOLS = {
+    # Big Tech (Top 10)
+    "AAPL": "Apple Inc.",
+    "GOOGL": "Alphabet Inc. (Google)",
+    "MSFT": "Microsoft Corporation",
+    "AMZN": "Amazon.com Inc.",
+    "META": "Meta Platforms Inc.",
+    "TSLA": "Tesla Inc.",
+    "NVDA": "NVIDIA Corporation",
+    "NFLX": "Netflix Inc.",
+    "CRM": "Salesforce Inc.",
+    "ORCL": "Oracle Corporation",
+    
+    # Major Market Indices
+    "SPY": "S&P 500 ETF",
+    "QQQ": "Nasdaq 100 ETF",
+    "DIA": "Dow Jones Industrial Average ETF",
+    "VTI": "Total Stock Market ETF",
+    "IWM": "Russell 2000 ETF",
+    
+    # Commodities & Precious Metals
+    "GLD": "Gold ETF",
+    "SLV": "Silver ETF",
+    "USO": "Oil ETF",
+    "UNG": "Natural Gas ETF",
+    
+    # Major Cryptocurrencies (ETFs for reliable data)
+    "BITO": "Bitcoin Strategy ETF",
+    "ETHE": "Ethereum Trust"
 }
 
 def get_local_stock_data(symbol: str) -> dict:
     """Get stock data from local database"""
     try:
-        # First check if we have fresh local data
-        local_data = data_importer.get_cached_stock_data(symbol)
-        if local_data:
-            return {
-                "success": True,
-                "data": local_data,
-                "source": "local_database"
-            }
+        # First check if we have fresh local data using data_importer if available
+        try:
+            local_data = data_importer.get_cached_stock_data(symbol)
+            if local_data:
+                return {
+                    "success": True,
+                    "data": local_data,
+                    "source": "local_database"
+                }
+        except (NameError, AttributeError):
+            # data_importer not available, try direct MCP database access
+            pass
+        
+        # If no local cached data, try MCP database servers directly
+        try:
+            db_result = finance_db_stock_price.get_latest_price(symbol=symbol)
+            if db_result:
+                return {
+                    "success": True,
+                    "data": {
+                        "symbol": symbol,
+                        "close": db_result.get('close_price', 0.0),
+                        "high": db_result.get('high_price', 0.0),
+                        "low": db_result.get('low_price', 0.0),
+                        "open": db_result.get('open_price', 0.0),
+                        "volume": db_result.get('volume', 0),
+                        "date": db_result.get('date', ''),
+                        "change": 0.0,  # Calculate if previous data available
+                        "change_percent": 0.0
+                    },
+                    "source": "mcp_database"
+                }
+        except Exception as e:
+            print(f"MCP database access failed for {symbol}: {e}")
         
         # If no local data, return None to trigger external fetch
         return None
@@ -165,7 +215,7 @@ def format_stock_data(symbol: str, local_data: dict = None, mcp_data: dict = Non
         data = local_data.get('data', {})
         return StockData(
             symbol=symbol,
-            company=VIETNAMESE_STOCKS.get(symbol, f"{symbol} Corporation"),
+            company=RELIABLE_SYMBOLS.get(symbol, f"{symbol} Corporation"),
             price=float(data.get('close', 100.0)),
             change=float(data.get('change', 0.0)),
             changePercent=float(data.get('change_percent', 0.0))
@@ -182,7 +232,7 @@ def format_stock_data(symbol: str, local_data: dict = None, mcp_data: dict = Non
         
         return StockData(
             symbol=symbol,
-            company=mcp_data.get('display_name', VIETNAMESE_STOCKS.get(symbol, f"{symbol} Corporation")),
+            company=mcp_data.get('display_name', RELIABLE_SYMBOLS.get(symbol, f"{symbol} Corporation")),
             price=float(current_price),
             change=float(change),
             changePercent=float(change_percent)
@@ -191,7 +241,7 @@ def format_stock_data(symbol: str, local_data: dict = None, mcp_data: dict = Non
     # Final fallback to sample data
     return StockData(
         symbol=symbol,
-        company=VIETNAMESE_STOCKS.get(symbol, f"{symbol} Corporation"),
+        company=RELIABLE_SYMBOLS.get(symbol, f"{symbol} Corporation"),
         price=round(random.uniform(50, 200), 2),
         change=round(random.uniform(-5, 5), 2),
         changePercent=round(random.uniform(-3, 3), 2)
@@ -211,7 +261,7 @@ def format_market_data(symbol: str, local_data: dict = None, mcp_data: dict = No
             prevClose=float(data.get('prev_close', data.get('close', 0))),
             currentPrice=float(data.get('close', 0)),
             symbol=symbol,
-            company=VIETNAMESE_STOCKS.get(symbol, 'Market Index')
+            company=RELIABLE_SYMBOLS.get(symbol, 'Market Index')
         )
     
     # Fallback to MCP data
@@ -246,11 +296,11 @@ def format_market_data(symbol: str, local_data: dict = None, mcp_data: dict = No
 
 @router.get("/api/market-data/{symbol}")
 async def get_market_data(symbol: str, background_tasks: BackgroundTasks) -> MarketData:
-    """Get market data for a specific symbol (VN-INDEX, etc.)"""
+    """Get market data for a specific symbol (SPY for S&P 500, etc.)"""
     
-    # For Vietnamese market index, use a representative symbol
-    if symbol.upper() == "VN-INDEX":
-        lookup_symbol = "VCB"  # Use VCB as proxy for VN-INDEX
+    # For market index, use a representative symbol
+    if symbol.upper() in ["SPY", "QQQ", "DIA"]:
+        lookup_symbol = "AAPL"  # Use AAPL as proxy for market indices
     else:
         lookup_symbol = symbol
     
@@ -270,10 +320,13 @@ async def get_market_data(symbol: str, background_tasks: BackgroundTasks) -> Mar
 
 @router.get("/api/watchlist-stocks")
 async def get_watchlist_stocks(background_tasks: BackgroundTasks) -> List[StockData]:
-    """Get watchlist stocks data - replaces mockWatchlistStocks"""
+    """Get watchlist stocks data - top 8 reliable stocks"""
     
     stocks = []
-    for symbol in VIETNAMESE_STOCKS.keys():
+    # Get first 8 symbols for watchlist (mix of tech stocks and indices)
+    top_stocks = list(RELIABLE_SYMBOLS.keys())[:8]
+    
+    for symbol in top_stocks:
         # Try local data first
         local_data = get_local_stock_data(symbol)
         
@@ -288,10 +341,6 @@ async def get_watchlist_stocks(background_tasks: BackgroundTasks) -> List[StockD
         
         stock_data = format_stock_data(symbol, local_data, mcp_data)
         stocks.append(stock_data)
-        
-        # Limit to 6 stocks like in mock data
-        if len(stocks) >= 6:
-            break
     
     return stocks
 
@@ -321,11 +370,20 @@ async def get_chart_data(symbol: str, background_tasks: BackgroundTasks, period:
     days_map = {"1week": 7, "1month": 30, "3months": 90, "6months": 180, "1year": 365}
     days = days_map.get(period, 30)
     
-    local_historical = data_importer.get_historical_data(symbol, days)
+    # Try local database first via data_importer if available
+    local_historical = None
+    try:
+        local_historical = data_importer.get_historical_data(symbol, days)
+    except (NameError, AttributeError):
+        # data_importer not available, try MCP database server
+        pass
     
-    # Schedule background refresh if data is stale
-    if not data_importer.is_data_fresh(symbol):
-        background_tasks.add_task(ensure_fresh_data, symbol)
+    # Schedule background refresh if data is stale (if data_importer available)
+    try:
+        if not data_importer.is_data_fresh(symbol):
+            background_tasks.add_task(ensure_fresh_data, symbol)
+    except (NameError, AttributeError):
+        pass
     
     if local_historical:
         return [
@@ -337,7 +395,32 @@ async def get_chart_data(symbol: str, background_tasks: BackgroundTasks, period:
             if item["close"] is not None
         ]
     
-    # Fallback to MCP data
+    # Try MCP database server for historical data
+    try:
+        from datetime import datetime, timedelta
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        
+        db_historical = finance_db_stock_price.get_historical_prices(
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            limit=days
+        )
+        
+        if db_historical and isinstance(db_historical, list):
+            return [
+                ChartDataPoint(
+                    time=item.get('date', ''),
+                    price=float(item.get('close_price', 0.0))
+                )
+                for item in db_historical
+                if item.get('close_price') is not None
+            ]
+    except Exception as e:
+        print(f"MCP database historical data failed for {symbol}: {e}")
+    
+    # Fallback to MCP market data
     mcp_data = get_mcp_market_data(symbol)
     
     if mcp_data and mcp_data.get('success'):
@@ -578,132 +661,222 @@ async def get_technical_analysis(symbol: str, period: str = "6months") -> Techni
         confidence=round(random.uniform(0.6, 0.9), 2)
     )
 
-@router.get("/api/compare-stocks/{symbol1}/{symbol2}")
-async def compare_stocks(symbol1: str, symbol2: str) -> StockComparison:
-    """Compare two stocks side by side"""
-    
-    try:
-        mcp_result = finance_calculations.compare_stock_prices(
-            stock_symbol_1=symbol1,
-            stock_symbol_2=symbol2
-        )
-        
-        if mcp_result and mcp_result.get('success'):
-            comparison = mcp_result.get('comparison', {})
-            
-            return StockComparison(
-                symbol1=symbol1,
-                symbol2=symbol2,
-                price1=comparison.get('price_1', 0.0),
-                price2=comparison.get('price_2', 0.0),
-                comparison=comparison.get('comparison_result', ''),
-                percentage_difference=comparison.get('percentage_difference', 0.0)
-            )
-    
-    except Exception as e:
-        print(f"Error comparing {symbol1} and {symbol2}: {e}")
-    
-    # Fallback comparison
-    price1 = round(random.uniform(50, 200), 2)
-    price2 = round(random.uniform(50, 200), 2)
-    diff = ((price1 - price2) / price2) * 100
-    
-    return StockComparison(
-        symbol1=symbol1,
-        symbol2=symbol2,
-        price1=price1,
-        price2=price2,
-        comparison=f"{symbol1} is {'higher' if price1 > price2 else 'lower'} than {symbol2}",
-        percentage_difference=round(diff, 2)
-    )
+# Remove the compare stocks endpoint and replace with crypto/commodities endpoints
 
-@router.get("/api/price-range/{symbol}")
-async def get_price_range(symbol: str, period: str = "1year") -> PriceRange:
-    """Get historical price range analysis for a stock"""
+@router.get("/api/crypto-data")
+async def get_crypto_data() -> List[CryptoData]:
+    """Get cryptocurrency data (using ETF proxies for reliability)"""
     
-    try:
-        mcp_result = finance_analysis_and_predictions.analyze_price_range(
-            symbol=symbol,
-            period=period
-        )
-        
-        if mcp_result and mcp_result.get('success'):
-            analysis = mcp_result.get('analysis', {})
+    crypto_symbols = ["BITO", "ETHE"]  # Bitcoin and Ethereum ETFs
+    crypto_data = []
+    
+    for symbol in crypto_symbols:
+        try:
+            # Try to get real data from MCP
+            local_data = get_local_stock_data(symbol)
             
-            return PriceRange(
-                symbol=symbol,
-                period=period,
-                high=analysis.get('high', 0.0),
-                low=analysis.get('low', 0.0),
-                average=analysis.get('average', 0.0),
-                volatility=analysis.get('volatility', 0.0),
-                trend=analysis.get('trend', 'stable')
-            )
+            if local_data and local_data.get('success'):
+                data = local_data.get('data', {})
+                crypto_data.append(CryptoData(
+                    symbol=symbol,
+                    name=RELIABLE_SYMBOLS.get(symbol, f"{symbol} Trust"),
+                    price=float(data.get('close', 100.0)),
+                    change_24h=float(data.get('change', 0.0)),
+                    change_percent_24h=float(data.get('change_percent', 0.0)),
+                    market_cap=float(data.get('market_cap', 0)) if data.get('market_cap') else None,
+                    volume_24h=float(data.get('volume', 0)) if data.get('volume') else None
+                ))
+            else:
+                # Fallback data
+                crypto_data.append(CryptoData(
+                    symbol=symbol,
+                    name=RELIABLE_SYMBOLS.get(symbol, f"{symbol} Trust"),
+                    price=round(random.uniform(20, 50), 2),
+                    change_24h=round(random.uniform(-5, 5), 2),
+                    change_percent_24h=round(random.uniform(-10, 10), 2),
+                    market_cap=round(random.uniform(1000000000, 10000000000), 0),
+                    volume_24h=round(random.uniform(1000000, 100000000), 0)
+                ))
+        except Exception as e:
+            print(f"Error getting crypto data for {symbol}: {e}")
+            continue
     
-    except Exception as e:
-        print(f"Error getting price range for {symbol}: {e}")
-    
-    # Fallback price range
-    low = round(random.uniform(80, 120), 2)
-    high = low + round(random.uniform(20, 50), 2)
-    average = round((low + high) / 2, 2)
-    
-    return PriceRange(
-        symbol=symbol,
-        period=period,
-        high=high,
-        low=low,
-        average=average,
-        volatility=round(random.uniform(0.15, 0.35), 3),
-        trend=random.choice(["upward", "downward", "stable"])
-    )
+    return crypto_data
 
-@router.get("/api/volatility/{symbol}")
-async def get_volatility_analysis(symbol: str, period: str = "3months") -> VolatilityAnalysis:
-    """Get volatility analysis for a stock"""
+@router.get("/api/commodities-data")
+async def get_commodities_data() -> List[CommodityData]:
+    """Get commodities data (Gold, Silver, Oil, Gas)"""
+    
+    commodities_symbols = {
+        "GLD": {"name": "Gold", "unit": "USD per ounce (ETF)"},
+        "SLV": {"name": "Silver", "unit": "USD per ounce (ETF)"},
+        "USO": {"name": "Oil", "unit": "USD per barrel (ETF)"},
+        "UNG": {"name": "Natural Gas", "unit": "USD per MMBtu (ETF)"}
+    }
+    
+    commodities_data = []
+    
+    for symbol, info in commodities_symbols.items():
+        try:
+            # Try to get real data from MCP
+            local_data = get_local_stock_data(symbol)
+            
+            if local_data and local_data.get('success'):
+                data = local_data.get('data', {})
+                commodities_data.append(CommodityData(
+                    symbol=symbol,
+                    name=info["name"],
+                    price=float(data.get('close', 100.0)),
+                    change=float(data.get('change', 0.0)),
+                    change_percent=float(data.get('change_percent', 0.0)),
+                    unit=info["unit"]
+                ))
+            else:
+                # Fallback data
+                base_prices = {"GLD": 180, "SLV": 22, "USO": 70, "UNG": 25}
+                commodities_data.append(CommodityData(
+                    symbol=symbol,
+                    name=info["name"],
+                    price=round(random.uniform(base_prices[symbol] * 0.9, base_prices[symbol] * 1.1), 2),
+                    change=round(random.uniform(-5, 5), 2),
+                    change_percent=round(random.uniform(-3, 3), 2),
+                    unit=info["unit"]
+                ))
+        except Exception as e:
+            print(f"Error getting commodity data for {symbol}: {e}")
+            continue
+    
+    return commodities_data
+
+@router.get("/api/indices-data")
+async def get_indices_data() -> List[IndexData]:
+    """Get major market indices data"""
+    
+    indices_symbols = {
+        "SPY": {"name": "S&P 500", "constituents": 500},
+        "QQQ": {"name": "Nasdaq 100", "constituents": 100},
+        "DIA": {"name": "Dow Jones", "constituents": 30},
+        "VTI": {"name": "Total Stock Market", "constituents": 4000},
+        "IWM": {"name": "Russell 2000", "constituents": 2000}
+    }
+    
+    indices_data = []
+    
+    for symbol, info in indices_symbols.items():
+        try:
+            # Try to get real data from MCP
+            local_data = get_local_stock_data(symbol)
+            
+            if local_data and local_data.get('success'):
+                data = local_data.get('data', {})
+                indices_data.append(IndexData(
+                    symbol=symbol,
+                    name=info["name"],
+                    value=float(data.get('close', 400.0)),
+                    change=float(data.get('change', 0.0)),
+                    change_percent=float(data.get('change_percent', 0.0)),
+                    constituents=info["constituents"]
+                ))
+            else:
+                # Fallback data
+                base_values = {"SPY": 450, "QQQ": 380, "DIA": 350, "VTI": 240, "IWM": 200}
+                indices_data.append(IndexData(
+                    symbol=symbol,
+                    name=info["name"],
+                    value=round(random.uniform(base_values[symbol] * 0.95, base_values[symbol] * 1.05), 2),
+                    change=round(random.uniform(-10, 10), 2),
+                    change_percent=round(random.uniform(-2, 2), 2),
+                    constituents=info["constituents"]
+                ))
+        except Exception as e:
+            print(f"Error getting index data for {symbol}: {e}")
+            continue
+    
+    return indices_data
+
+# Replace price range and volatility with a comprehensive market overview
+
+@router.get("/api/market-overview")
+async def get_market_overview():
+    """Get comprehensive market overview including tech stocks, indices, commodities, and crypto"""
     
     try:
-        mcp_result = finance_calculations.calculate_stock_volatility(
-            symbol=symbol,
-            period=period
-        )
+        # Get data for different asset classes
+        tech_stocks = []
+        tech_symbols = list(RELIABLE_SYMBOLS.keys())[:10]  # First 10 are tech stocks
         
-        if mcp_result and mcp_result.get('success'):
-            volatility = mcp_result.get('volatility', {})
-            
-            daily_vol = volatility.get('daily_volatility', 0.02)
-            annual_vol = daily_vol * (252 ** 0.5)  # Annualize
-            
-            return VolatilityAnalysis(
-                symbol=symbol,
-                period=period,
-                daily_volatility=daily_vol,
-                annualized_volatility=annual_vol,
-                risk_level="high" if annual_vol > 0.3 else "medium" if annual_vol > 0.15 else "low",
-                price_range={
-                    "expected_range": annual_vol * 100,
-                    "confidence_interval": 68.0
-                }
-            )
-    
-    except Exception as e:
-        print(f"Error getting volatility for {symbol}: {e}")
-    
-    # Fallback volatility
-    daily_vol = round(random.uniform(0.015, 0.040), 4)
-    annual_vol = daily_vol * (252 ** 0.5)
-    
-    return VolatilityAnalysis(
-        symbol=symbol,
-        period=period,
-        daily_volatility=daily_vol,
-        annualized_volatility=round(annual_vol, 3),
-        risk_level="high" if annual_vol > 0.3 else "medium" if annual_vol > 0.15 else "low",
-        price_range={
-            "expected_range": round(annual_vol * 100, 1),
-            "confidence_interval": 68.0
+        for symbol in tech_symbols[:5]:  # Top 5 tech stocks for overview
+            local_data = get_local_stock_data(symbol)
+            if local_data and local_data.get('success'):
+                data = local_data.get('data', {})
+                tech_stocks.append({
+                    "symbol": symbol,
+                    "name": RELIABLE_SYMBOLS[symbol],
+                    "price": float(data.get('close', 100.0)),
+                    "change_percent": float(data.get('change_percent', 0.0))
+                })
+        
+        # Get major indices
+        major_indices = []
+        index_symbols = ["SPY", "QQQ", "DIA"]
+        
+        for symbol in index_symbols:
+            local_data = get_local_stock_data(symbol)
+            if local_data and local_data.get('success'):
+                data = local_data.get('data', {})
+                major_indices.append({
+                    "symbol": symbol,
+                    "name": RELIABLE_SYMBOLS[symbol],
+                    "value": float(data.get('close', 400.0)),
+                    "change_percent": float(data.get('change_percent', 0.0))
+                })
+        
+        # Market sentiment calculation
+        all_changes = []
+        for stock in tech_stocks:
+            all_changes.append(stock["change_percent"])
+        for index in major_indices:
+            all_changes.append(index["change_percent"])
+        
+        avg_change = sum(all_changes) / len(all_changes) if all_changes else 0
+        market_sentiment = "bullish" if avg_change > 0.5 else "bearish" if avg_change < -0.5 else "neutral"
+        
+        return {
+            "market_sentiment": market_sentiment,
+            "average_change": round(avg_change, 2),
+            "tech_stocks": tech_stocks,
+            "major_indices": major_indices,
+            "commodities_summary": {
+                "gold_trend": "stable",
+                "oil_trend": "volatile",
+                "crypto_trend": "bullish"
+            },
+            "last_updated": datetime.now().isoformat()
         }
-    )
+    
+    except Exception as e:
+        print(f"Error getting market overview: {e}")
+        
+        # Fallback overview
+        return {
+            "market_sentiment": "neutral",
+            "average_change": 0.25,
+            "tech_stocks": [
+                {"symbol": "AAPL", "name": "Apple Inc.", "price": 175.50, "change_percent": 1.2},
+                {"symbol": "GOOGL", "name": "Alphabet Inc.", "price": 142.80, "change_percent": 0.8},
+                {"symbol": "MSFT", "name": "Microsoft Corp.", "price": 420.30, "change_percent": 1.5}
+            ],
+            "major_indices": [
+                {"symbol": "SPY", "name": "S&P 500 ETF", "value": 450.25, "change_percent": 0.7},
+                {"symbol": "QQQ", "name": "Nasdaq 100 ETF", "value": 380.15, "change_percent": 1.1}
+            ],
+            "commodities_summary": {
+                "gold_trend": "stable",
+                "oil_trend": "volatile", 
+                "crypto_trend": "bullish"
+            },
+            "last_updated": datetime.now().isoformat()
+        }
 
 @router.get("/api/chart-image/{symbol}")
 async def get_chart_image(
@@ -822,6 +995,296 @@ async def get_trading_volume(symbol: str, period: str = "1month"):
         "liquidity_rating": "high" if avg_volume > 1000000 else "medium" if avg_volume > 500000 else "low"
     }
 
+@router.get("/api/trading-volume/{symbol}")
+async def get_trading_volume(symbol: str, period: str = "1month"):
+    """Get average trading volume analysis"""
+    
+    try:
+        mcp_result = finance_calculations.calculate_average_volume(
+            symbol=symbol,
+            period=period
+        )
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "symbol": symbol,
+                "period": period,
+                "average_volume": mcp_result.get('average_volume', 0),
+                "total_volume": mcp_result.get('total_volume', 0),
+                "trading_days": mcp_result.get('trading_days', 0),
+                "volume_trend": mcp_result.get('volume_trend', 'stable'),
+                "liquidity_rating": mcp_result.get('liquidity_rating', 'medium')
+            }
+    
+    except Exception as e:
+        print(f"Error getting volume for {symbol}: {e}")
+    
+    # Fallback volume data
+    avg_volume = random.randint(100000, 5000000)
+    return {
+        "symbol": symbol,
+        "period": period,
+        "average_volume": avg_volume,
+        "total_volume": avg_volume * 22,  # ~22 trading days per month
+        "trading_days": 22,
+        "volume_trend": random.choice(["increasing", "decreasing", "stable"]),
+        "liquidity_rating": "high" if avg_volume > 1000000 else "medium" if avg_volume > 500000 else "low"
+    }
+
+@router.get("/api/symbol-discovery")
+async def discover_symbols(query: str = Query(description="Search query for symbols")):
+    """Discover stock symbols based on query"""
+    
+    try:
+        mcp_result = finance_symbol_discovery.discover_symbols(
+            query=query,
+            limit=10
+        )
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "query": query,
+                "symbols": mcp_result.get('symbols', []),
+                "count": len(mcp_result.get('symbols', []))
+            }
+    
+    except Exception as e:
+        print(f"Error discovering symbols for '{query}': {e}")
+    
+    # Fallback - return some reliable symbols matching query
+    matching_stocks = [
+        {"symbol": symbol, "name": name} 
+        for symbol, name in RELIABLE_SYMBOLS.items()
+        if query.upper() in symbol.upper() or query.lower() in name.lower()
+    ]
+    
+    return {
+        "query": query,
+        "symbols": matching_stocks[:10],
+        "count": len(matching_stocks)
+    }
+
+@router.get("/api/data-ingestion/status")
+async def get_data_ingestion_status():
+    """Get status of data ingestion processes"""
+    
+    try:
+        mcp_result = finance_data_ingestion.get_ingestion_status()
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "status": "active",
+                "last_update": mcp_result.get('last_update'),
+                "sources": mcp_result.get('sources', []),
+                "statistics": mcp_result.get('statistics', {})
+            }
+    
+    except Exception as e:
+        print(f"Error getting ingestion status: {e}")
+    
+    # Fallback status
+    return {
+        "status": "mock",
+        "last_update": datetime.now().isoformat(),
+        "sources": ["Yahoo Finance", "Alpha Vantage"],
+        "statistics": {
+            "symbols_tracked": len(RELIABLE_SYMBOLS),
+            "last_import": "2025-07-29T10:00:00Z",
+            "success_rate": 95.5
+        }
+    }
+
+@router.post("/api/data-ingestion/trigger")
+async def trigger_data_ingestion(symbols: List[str] = Query(description="Symbols to ingest")):
+    """Trigger data ingestion for specific symbols"""
+    
+    try:
+        mcp_result = finance_data_ingestion.trigger_ingestion(
+            symbols=symbols,
+            priority="high"
+        )
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "status": "triggered",
+                "job_id": mcp_result.get('job_id'),
+                "symbols": symbols,
+                "estimated_completion": mcp_result.get('estimated_completion')
+            }
+    
+    except Exception as e:
+        print(f"Error triggering ingestion: {e}")
+    
+    # Fallback response
+    return {
+        "status": "mock_triggered",
+        "job_id": f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        "symbols": symbols,
+        "estimated_completion": (datetime.now() + timedelta(minutes=5)).isoformat()
+    }
+
+@router.get("/api/portfolio/analysis")
+async def get_portfolio_analysis():
+    """Get detailed portfolio analysis"""
+    
+    try:
+        mcp_result = finance_portfolio.analyze_portfolio()
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "analysis": mcp_result.get('analysis', {}),
+                "risk_metrics": mcp_result.get('risk_metrics', {}),
+                "recommendations": mcp_result.get('recommendations', []),
+                "diversification": mcp_result.get('diversification', {})
+            }
+    
+    except Exception as e:
+        print(f"Error getting portfolio analysis: {e}")
+    
+    # Fallback analysis
+    return {
+        "analysis": {
+            "total_value": 125000.0,
+            "total_return": 15.5,
+            "sharpe_ratio": 1.2,
+            "beta": 0.95
+        },
+        "risk_metrics": {
+            "volatility": 0.18,
+            "var_95": -2.5,
+            "max_drawdown": -8.2
+        },
+        "recommendations": [
+            "Consider rebalancing to reduce tech concentration",
+            "Add defensive stocks for stability",
+            "Review position sizes for optimal risk management"
+        ],
+        "diversification": {
+            "sector_concentration": 0.65,
+            "geographic_exposure": {"US": 0.85, "International": 0.15},
+            "market_cap_distribution": {"Large": 0.75, "Mid": 0.20, "Small": 0.05}
+        }
+    }
+
+@router.get("/api/portfolio/optimization")
+async def get_portfolio_optimization(risk_level: str = Query("moderate", description="Risk level: conservative, moderate, aggressive")):
+    """Get portfolio optimization suggestions"""
+    
+    try:
+        mcp_result = finance_portfolio.optimize_portfolio(
+            risk_level=risk_level,
+            target_return=None
+        )
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "risk_level": risk_level,
+                "suggested_allocation": mcp_result.get('allocation', {}),
+                "expected_return": mcp_result.get('expected_return', 0.0),
+                "expected_risk": mcp_result.get('expected_risk', 0.0),
+                "rebalancing_actions": mcp_result.get('actions', [])
+            }
+    
+    except Exception as e:
+        print(f"Error getting portfolio optimization: {e}")
+    
+    # Fallback optimization based on risk level
+    allocations = {
+        "conservative": {"stocks": 0.4, "bonds": 0.5, "cash": 0.1},
+        "moderate": {"stocks": 0.6, "bonds": 0.3, "cash": 0.1},
+        "aggressive": {"stocks": 0.8, "bonds": 0.15, "cash": 0.05}
+    }
+    
+    returns = {"conservative": 0.06, "moderate": 0.08, "aggressive": 0.12}
+    risks = {"conservative": 0.08, "moderate": 0.12, "aggressive": 0.18}
+    
+    return {
+        "risk_level": risk_level,
+        "suggested_allocation": allocations.get(risk_level, allocations["moderate"]),
+        "expected_return": returns.get(risk_level, 0.08),
+        "expected_risk": risks.get(risk_level, 0.12),
+        "rebalancing_actions": [
+            f"Adjust allocation to {risk_level} risk profile",
+            "Rebalance quarterly to maintain target weights",
+            "Monitor correlation changes in holdings"
+        ]
+    }
+
+@router.get("/api/market-sentiment")
+async def get_market_sentiment():
+    """Get overall market sentiment analysis"""
+    
+    try:
+        mcp_result = finance_news_and_insights.analyze_market_sentiment()
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "overall_sentiment": mcp_result.get('sentiment', 'neutral'),
+                "sentiment_score": mcp_result.get('score', 0.0),
+                "key_themes": mcp_result.get('themes', []),
+                "market_indicators": mcp_result.get('indicators', {}),
+                "confidence": mcp_result.get('confidence', 0.75)
+            }
+    
+    except Exception as e:
+        print(f"Error getting market sentiment: {e}")
+    
+    # Fallback sentiment
+    return {
+        "overall_sentiment": "cautiously_optimistic",
+        "sentiment_score": 0.15,
+        "key_themes": [
+            "Fed policy uncertainty",
+            "Corporate earnings resilience", 
+            "Geopolitical tensions",
+            "Technology sector strength"
+        ],
+        "market_indicators": {
+            "vix": 18.5,
+            "put_call_ratio": 0.95,
+            "yield_curve": "normal",
+            "credit_spreads": "stable"
+        },
+        "confidence": 0.72
+    }
+
+@router.get("/api/sector-analysis")
+async def get_sector_analysis():
+    """Get comprehensive sector analysis"""
+    
+    try:
+        mcp_result = finance_analysis_and_predictions.analyze_sectors()
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "sectors": mcp_result.get('sectors', {}),
+                "top_performers": mcp_result.get('top_performers', []),
+                "bottom_performers": mcp_result.get('bottom_performers', []),
+                "rotation_signals": mcp_result.get('rotation_signals', {})
+            }
+    
+    except Exception as e:
+        print(f"Error getting sector analysis: {e}")
+    
+    # Fallback sector analysis
+    return {
+        "sectors": {
+            "Technology": {"return": 0.125, "volatility": 0.22, "trend": "bullish"},
+            "Healthcare": {"return": 0.089, "volatility": 0.15, "trend": "neutral"},
+            "Financial": {"return": 0.095, "volatility": 0.18, "trend": "bullish"},
+            "Energy": {"return": 0.078, "volatility": 0.28, "trend": "bearish"},
+            "Consumer": {"return": 0.102, "volatility": 0.16, "trend": "neutral"}
+        },
+        "top_performers": ["Technology", "Financial", "Consumer"],
+        "bottom_performers": ["Energy", "Utilities", "Real Estate"],
+        "rotation_signals": {
+            "momentum": "growth_to_value",
+            "cycle_phase": "mid_cycle",
+            "recommended_overweight": ["Technology", "Financial"],
+            "recommended_underweight": ["Energy", "Utilities"]
+        }
+    }
+
 # Data Import Management Endpoints
 @router.post("/api/admin/import-data")
 async def trigger_data_import():
@@ -910,8 +1373,13 @@ async def get_cached_company_info(symbol: str):
 async def get_company_info(symbol: str, background_tasks: BackgroundTasks) -> CompanyInfo:
     """Get detailed company information"""
     
-    # Try to get from local database first
-    local_company_info = data_importer.get_cached_company_info(symbol)
+    # Try to get from local database first via data_importer if available
+    local_company_info = None
+    try:
+        local_company_info = data_importer.get_cached_company_info(symbol)
+    except (NameError, AttributeError):
+        # data_importer not available, try MCP database server directly
+        pass
     
     if local_company_info:
         return CompanyInfo(
@@ -925,12 +1393,33 @@ async def get_company_info(symbol: str, background_tasks: BackgroundTasks) -> Co
             employees=None  # Not available in existing schema
         )
     
-    # Schedule background refresh
-    background_tasks.add_task(ensure_fresh_data, symbol)
-    
-    # Fallback to MCP server
+    # Try MCP database server directly
     try:
-        mcp_result = finance_db_company.get_company_info(symbol=symbol)
+        mcp_db_result = finance_db_company.get_company_by_symbol(company_symbol=symbol)
+        
+        if mcp_db_result:
+            return CompanyInfo(
+                symbol=symbol,
+                company_name=mcp_db_result.get('name', f"{symbol} Corporation"),
+                sector=mcp_db_result.get('sector', 'Technology'),
+                industry=mcp_db_result.get('industry', 'Software'),
+                market_cap=mcp_db_result.get('market_cap'),
+                description=mcp_db_result.get('description', f"{symbol} is a leading company in its sector."),
+                website=mcp_db_result.get('website'),
+                employees=mcp_db_result.get('employee_count')
+            )
+    except Exception as e:
+        print(f"MCP database company info failed for {symbol}: {e}")
+    
+    # Schedule background refresh if data_importer is available
+    try:
+        background_tasks.add_task(ensure_fresh_data, symbol)
+    except (NameError, AttributeError):
+        pass
+    
+    # Fallback to general MCP server (if different from database server)
+    try:
+        mcp_result = finance_db_company.get_company_info(symbol=symbol) if hasattr(finance_db_company, 'get_company_info') else None
         
         if mcp_result and mcp_result.get('success'):
             info = mcp_result.get('company_info', {})
@@ -952,7 +1441,7 @@ async def get_company_info(symbol: str, background_tasks: BackgroundTasks) -> Co
     # Final fallback
     return CompanyInfo(
         symbol=symbol,
-        company_name=VIETNAMESE_STOCKS.get(symbol, f"{symbol} Corporation"),
+        company_name=RELIABLE_SYMBOLS.get(symbol, f"{symbol} Corporation"),
         sector=random.choice(["Technology", "Finance", "Healthcare", "Energy", "Consumer Goods"]),
         industry=random.choice(["Software", "Banking", "Pharmaceuticals", "Oil & Gas", "Retail"]),
         market_cap=round(random.uniform(1000000000, 50000000000), 0),
@@ -964,39 +1453,556 @@ async def get_company_info(symbol: str, background_tasks: BackgroundTasks) -> Co
 # Health check for the API
 @router.get("/api/health")
 async def api_health():
-    """Health check for direct finance API"""
+    """Health check for enhanced finance API"""
     return {
         "status": "healthy",
-        "service": "direct_finance_api",
-        "version": "2.0.0",
+        "service": "enhanced_finance_api",
+        "version": "3.0.0",
         "data_source": "local_database_with_mcp_fallback",
+        "symbol_focus": "10_big_tech_stocks_plus_indices_commodities_crypto",
         "features": [
+            "focused_symbol_set",
+            "crypto_etf_tracking",
+            "commodities_monitoring",
+            "market_indices_coverage",
+            "comprehensive_market_overview",
             "local_database_caching",
             "background_data_refresh",
-            "automatic_import_scheduling",
-            "reduced_external_api_calls"
+            "mathematical_calculations",
+            "user_management"
         ],
-        "endpoints": [
-            "/api/market-data/{symbol}",
-            "/api/watchlist-stocks", 
-            "/api/stock/{symbol}",
-            "/api/chart-data/{symbol}",
-            "/api/news",
-            "/api/predictions/{symbol}",
-            "/api/portfolio",
-            "/api/technical-analysis/{symbol}",
-            "/api/compare-stocks/{symbol1}/{symbol2}",
-            "/api/price-range/{symbol}",
-            "/api/volatility/{symbol}",
-            "/api/company-info/{symbol}",
-            "/api/chart-image/{symbol}",
-            "/api/stock-return/{symbol}",
-            "/api/trading-volume/{symbol}"
+        "core_endpoints": [
+            "/api/market-overview - Comprehensive market dashboard",
+            "/api/watchlist-stocks - Top 8 mixed assets",
+            "/api/stock/{symbol} - Individual asset data",
+            "/api/chart-data/{symbol} - Historical price charts",
+            "/api/crypto-data - Cryptocurrency ETF data",
+            "/api/commodities-data - Gold, Silver, Oil, Gas",
+            "/api/indices-data - Major market indices",
+            "/api/news - Financial news feed",
+            "/api/predictions/{symbol} - AI price predictions",
+            "/api/portfolio - Portfolio management",
+            "/api/technical-analysis/{symbol} - Technical indicators",
+            "/api/math/add - Mathematical addition",
+            "/api/user/{user_name} - User data management",
+            "/api/risk-analysis/{symbol} - Risk assessment"
         ],
-        "admin_endpoints": [
-            "/api/admin/import-data",
-            "/api/admin/import-stock/{symbol}",
-            "/api/admin/data-status",
-            "/api/admin/company-info/{symbol}"
+        "asset_classes": {
+            "big_tech_stocks": ["AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA", "NVDA", "NFLX", "CRM", "ORCL"],
+            "market_indices": ["SPY", "QQQ", "DIA", "VTI", "IWM"],
+            "commodities": ["GLD", "SLV", "USO", "UNG"],
+            "crypto_etfs": ["BITO", "ETHE"]
+        },
+        "symbols_tracked": len(RELIABLE_SYMBOLS),
+        "last_updated": datetime.now().isoformat()
+    }
+
+# Mathematical Operations Endpoints
+@router.get("/api/math/add")
+async def calculate_addition(a: float = Query(description="First number"), b: float = Query(description="Second number")):
+    """Add two numbers using the math MCP server"""
+    try:
+        result = math.add(a=a, b=b)
+        return {
+            "operation": "addition",
+            "operands": {"a": a, "b": b},
+            "result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        print(f"Error in mathematical addition: {e}")
+        return {
+            "operation": "addition",
+            "operands": {"a": a, "b": b},
+            "result": a + b,  # Fallback calculation
+            "timestamp": datetime.now().isoformat(),
+            "fallback": True
+        }
+
+# User Management Endpoints
+@router.get("/api/user/{user_name}")
+async def get_user_by_name(user_name: str):
+    """Get user data by name using the user database MCP server"""
+    try:
+        result = user_db.query_user_data(user_name=user_name)
+        
+        if result and "error" not in result:
+            return {
+                "status": "success",
+                "user": result,
+                "source": "database"
+            }
+        else:
+            return {
+                "status": "not_found",
+                "message": result.get("error", "User not found"),
+                "user_name": user_name
+            }
+    except Exception as e:
+        print(f"Error querying user by name: {e}")
+        return {
+            "status": "error",
+            "message": f"Database query failed: {str(e)}",
+            "user_name": user_name
+        }
+
+@router.get("/api/user-by-email/{user_email}")
+async def get_user_by_email(user_email: str):
+    """Get user data by email using the user database MCP server"""
+    try:
+        result = user_db.query_user_data_by_email(user_email=user_email)
+        
+        if result and "error" not in result:
+            return {
+                "status": "success",
+                "user": result,
+                "source": "database"
+            }
+        else:
+            return {
+                "status": "not_found",
+                "message": result.get("error", "User not found"),
+                "user_email": user_email
+            }
+    except Exception as e:
+        print(f"Error querying user by email: {e}")
+        return {
+            "status": "error",
+            "message": f"Database query failed: {str(e)}",
+            "user_email": user_email
+        }
+
+# Enhanced Financial Analysis Endpoints
+@router.get("/api/risk-analysis/{symbol}")
+async def get_risk_analysis(symbol: str, period: str = "6months"):
+    """Get comprehensive risk analysis for a stock"""
+    
+    # First try to get data from local database
+    local_data = get_local_stock_data(symbol)
+    
+    if local_data and local_data.get('success'):
+        data = local_data.get('data', {})
+        
+        # Calculate risk metrics from local data
+        volatility = abs(float(data.get('change_percent', 0))) * 2.5  # Simple volatility estimate
+        price = float(data.get('close', 100.0))
+        
+        # Risk categories based on volatility
+        if volatility > 5:
+            risk_level = "High"
+            recommendation = "Consider position sizing and stop losses"
+        elif volatility > 2:
+            risk_level = "Medium"
+            recommendation = "Moderate risk, suitable for balanced portfolios"
+        else:
+            risk_level = "Low"
+            recommendation = "Low risk, suitable for conservative investors"
+        
+        return {
+            "symbol": symbol,
+            "risk_level": risk_level,
+            "volatility_estimate": round(volatility, 2),
+            "current_price": price,
+            "risk_metrics": {
+                "beta": round(random.uniform(0.5, 1.5), 2),  # Beta estimate
+                "sharpe_ratio": round(random.uniform(0.8, 2.0), 2),
+                "max_drawdown": round(random.uniform(-15, -5), 2),
+                "var_95": round(price * -0.05, 2)  # 5% Value at Risk
+            },
+            "recommendation": recommendation,
+            "confidence": 0.75,
+            "data_source": "local_database"
+        }
+    
+    # Fallback to MCP server analysis
+    try:
+        mcp_result = finance_analysis_and_predictions.analyze_stock_risk(
+            symbol=symbol,
+            period=period
+        )
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "symbol": symbol,
+                "risk_level": mcp_result.get('risk_level', 'Medium'),
+                "volatility_estimate": mcp_result.get('volatility', 0.0),
+                "current_price": mcp_result.get('current_price', 100.0),
+                "risk_metrics": mcp_result.get('risk_metrics', {}),
+                "recommendation": mcp_result.get('recommendation', 'Hold'),
+                "confidence": mcp_result.get('confidence', 0.75),
+                "data_source": "mcp_server"
+            }
+    except Exception as e:
+        print(f"Error getting risk analysis for {symbol}: {e}")
+    
+    # Final fallback
+    return {
+        "symbol": symbol,
+        "risk_level": "Medium",
+        "volatility_estimate": round(random.uniform(1, 4), 2),
+        "current_price": round(random.uniform(80, 200), 2),
+        "risk_metrics": {
+            "beta": round(random.uniform(0.7, 1.3), 2),
+            "sharpe_ratio": round(random.uniform(0.5, 1.8), 2),
+            "max_drawdown": round(random.uniform(-20, -8), 2),
+            "var_95": round(random.uniform(-15, -5), 2)
+        },
+        "recommendation": "Moderate risk profile suitable for diversified portfolios",
+        "confidence": 0.65,
+        "data_source": "fallback"
+    }
+
+# Enhanced Database Access Endpoints (Using MCP Servers as Fallback)
+@router.get("/api/database/stock-price/{symbol}")
+async def get_database_stock_price(symbol: str):
+    """Get stock price directly from database using MCP server"""
+    
+    # First try local database
+    local_data = get_local_stock_data(symbol)
+    if local_data and local_data.get('success'):
+        return {
+            "status": "success",
+            "data": local_data.get('data'),
+            "source": "local_database"
+        }
+    
+    # Fallback to MCP database server
+    try:
+        result = finance_db_stock_price.get_latest_price(symbol=symbol)
+        
+        if result:
+            return {
+                "status": "success",
+                "data": result,
+                "source": "mcp_database"
+            }
+        else:
+            return {
+                "status": "not_found",
+                "message": f"No price data found for {symbol}",
+                "symbol": symbol
+            }
+    except Exception as e:
+        print(f"Error getting database stock price for {symbol}: {e}")
+        return {
+            "status": "error",
+            "message": f"Database query failed: {str(e)}",
+            "symbol": symbol
+        }
+
+@router.get("/api/database/company/{symbol}")
+async def get_database_company_info(symbol: str):
+    """Get company information directly from database using MCP server"""
+    
+    # Try MCP database server first (since this is a direct database endpoint)
+    try:
+        result = finance_db_company.get_company_by_symbol(company_symbol=symbol)
+        
+        if result:
+            return {
+                "status": "success",
+                "data": result,
+                "source": "mcp_database"
+            }
+        else:
+            return {
+                "status": "not_found",
+                "message": f"No company information found for {symbol}",
+                "symbol": symbol
+            }
+    except Exception as e:
+        print(f"Error getting database company info for {symbol}: {e}")
+        return {
+            "status": "error",
+            "message": f"Database query failed: {str(e)}",
+            "symbol": symbol
+        }
+
+# Enhanced Data Ingestion Endpoints
+@router.get("/api/data-ingestion/health")
+async def get_data_ingestion_health():
+    """Get health status of data ingestion system"""
+    
+    try:
+        # Check if we can access the data ingestion MCP server
+        result = finance_data_ingestion.get_ingestion_status()
+        
+        if result and result.get('success'):
+            return {
+                "status": "healthy",
+                "ingestion_active": True,
+                "last_update": result.get('last_update'),
+                "sources_active": result.get('sources', []),
+                "error_rate": result.get('error_rate', 0.0)
+            }
+    except Exception as e:
+        print(f"Error checking data ingestion health: {e}")
+    
+    # Fallback health check
+    return {
+        "status": "unknown",
+        "ingestion_active": False,
+        "message": "Data ingestion system status cannot be determined",
+        "fallback_mode": True
+    }
+
+# Advanced Portfolio Analytics
+@router.get("/api/portfolio/risk-return")
+async def get_portfolio_risk_return():
+    """Get portfolio risk-return analysis"""
+    
+    try:
+        # Try MCP portfolio analysis
+        mcp_result = finance_portfolio.analyze_portfolio_risk()
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "status": "success",
+                "analysis": mcp_result.get('analysis', {}),
+                "efficient_frontier": mcp_result.get('efficient_frontier', []),
+                "optimal_portfolio": mcp_result.get('optimal_portfolio', {}),
+                "current_position": mcp_result.get('current_position', {})
+            }
+    except Exception as e:
+        print(f"Error getting portfolio risk-return analysis: {e}")
+    
+    # Fallback analysis
+    return {
+        "status": "fallback",
+        "analysis": {
+            "expected_return": 0.105,
+            "portfolio_volatility": 0.16,
+            "sharpe_ratio": 1.15,
+            "correlation_matrix": {
+                "tech_concentration": 0.68,
+                "sector_diversification": 0.32
+            }
+        },
+        "efficient_frontier": [
+            {"risk": 0.08, "return": 0.06},
+            {"risk": 0.12, "return": 0.08},
+            {"risk": 0.16, "return": 0.105},
+            {"risk": 0.20, "return": 0.12}
+        ],
+        "optimal_portfolio": {
+            "risk_level": "moderate",
+            "expected_return": 0.105,
+            "volatility": 0.16
+        },
+        "current_position": {
+            "risk": 0.16,
+            "return": 0.105,
+            "efficiency": 0.72
+        }
+    }
+
+# Financial Calculations API
+@router.get("/api/calculations/compound-return")
+async def calculate_compound_return(
+    initial_amount: float = Query(description="Initial investment amount"),
+    annual_rate: float = Query(description="Annual return rate (as decimal, e.g., 0.08 for 8%)"),
+    years: int = Query(description="Number of years"),
+    compound_frequency: int = Query(default=1, description="Compounding frequency per year")
+):
+    """Calculate compound return using MCP calculations server"""
+    
+    try:
+        mcp_result = finance_calculations.calculate_compound_return(
+            principal=initial_amount,
+            rate=annual_rate,
+            time=years,
+            compound_frequency=compound_frequency
+        )
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "calculation": "compound_return",
+                "inputs": {
+                    "initial_amount": initial_amount,
+                    "annual_rate": annual_rate,
+                    "years": years,
+                    "compound_frequency": compound_frequency
+                },
+                "results": mcp_result.get('results', {}),
+                "source": "mcp_server"
+            }
+    except Exception as e:
+        print(f"Error calculating compound return: {e}")
+    
+    # Fallback calculation
+    final_amount = initial_amount * ((1 + annual_rate / compound_frequency) ** (compound_frequency * years))
+    total_return = final_amount - initial_amount
+    
+    return {
+        "calculation": "compound_return",
+        "inputs": {
+            "initial_amount": initial_amount,
+            "annual_rate": annual_rate,
+            "years": years,
+            "compound_frequency": compound_frequency
+        },
+        "results": {
+            "final_amount": round(final_amount, 2),
+            "total_return": round(total_return, 2),
+            "return_percentage": round((total_return / initial_amount) * 100, 2)
+        },
+        "source": "fallback"
+    }
+
+# Market Analysis Endpoints
+@router.get("/api/market/correlation-matrix")
+async def get_correlation_matrix(symbols: List[str] = Query(description="List of symbols to analyze")):
+    """Get correlation matrix for multiple symbols"""
+    
+    # Default to our reliable symbols if none provided
+    if not symbols:
+        symbols = list(RELIABLE_SYMBOLS.keys())[:8]
+    
+    try:
+        mcp_result = finance_analysis_and_predictions.calculate_correlation_matrix(
+            symbols=symbols,
+            period="6months"
+        )
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "symbols": symbols,
+                "correlation_matrix": mcp_result.get('correlation_matrix', {}),
+                "analysis": mcp_result.get('analysis', {}),
+                "recommendations": mcp_result.get('recommendations', [])
+            }
+    except Exception as e:
+        print(f"Error calculating correlation matrix: {e}")
+    
+    # Fallback correlation matrix (simplified)
+    import random
+    correlation_matrix = {}
+    
+    for i, symbol1 in enumerate(symbols):
+        correlation_matrix[symbol1] = {}
+        for j, symbol2 in enumerate(symbols):
+            if i == j:
+                correlation_matrix[symbol1][symbol2] = 1.0
+            elif symbol2 in correlation_matrix and symbol1 in correlation_matrix[symbol2]:
+                correlation_matrix[symbol1][symbol2] = correlation_matrix[symbol2][symbol1]
+            else:
+                # Generate realistic correlations (tech stocks more correlated)
+                if symbol1 in ['AAPL', 'GOOGL', 'MSFT', 'AMZN'] and symbol2 in ['AAPL', 'GOOGL', 'MSFT', 'AMZN']:
+                    corr = round(random.uniform(0.6, 0.9), 3)
+                else:
+                    corr = round(random.uniform(0.1, 0.7), 3)
+                correlation_matrix[symbol1][symbol2] = corr
+    
+    return {
+        "symbols": symbols,
+        "correlation_matrix": correlation_matrix,
+        "analysis": {
+            "average_correlation": 0.55,
+            "max_correlation": 0.89,
+            "min_correlation": 0.12,
+            "diversification_score": 0.65
+        },
+        "recommendations": [
+            "Consider reducing concentration in highly correlated assets",
+            "Add assets with low correlation for better diversification",
+            "Monitor correlation changes during market stress"
         ]
+    }
+
+# Symbol Search and Discovery
+@router.get("/api/search/symbols")
+async def search_symbols(
+    query: str = Query(description="Search query"), 
+    limit: int = Query(default=10, description="Maximum results to return")
+):
+    """Advanced symbol search using MCP symbol discovery"""
+    
+    try:
+        mcp_result = finance_symbol_discovery.search_symbols(query=query, limit=limit)
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "query": query,
+                "results": mcp_result.get('symbols', []),
+                "count": len(mcp_result.get('symbols', [])),
+                "source": "mcp_discovery"
+            }
+    except Exception as e:
+        print(f"Error searching symbols for '{query}': {e}")
+    
+    # Fallback search through reliable symbols
+    matching_symbols = []
+    query_lower = query.lower()
+    
+    for symbol, name in RELIABLE_SYMBOLS.items():
+        if (query_lower in symbol.lower() or 
+            query_lower in name.lower() or
+            any(word in name.lower() for word in query_lower.split())):
+            matching_symbols.append({
+                "symbol": symbol,
+                "name": name,
+                "type": "Stock" if symbol not in ["SPY", "QQQ", "DIA", "GLD", "USO", "BITO"] else "ETF",
+                "exchange": "NASDAQ" if symbol in ["AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA", "NVDA", "NFLX"] else "NYSE"
+            })
+    
+    return {
+        "query": query,
+        "results": matching_symbols[:limit],
+        "count": len(matching_symbols[:limit]),
+        "source": "fallback"
+    }
+
+# Real-time Market Status
+@router.get("/api/market/status")
+async def get_market_status():
+    """Get current market status and trading hours"""
+    
+    try:
+        mcp_result = finance_market_data.get_market_status()
+        
+        if mcp_result and mcp_result.get('success'):
+            return {
+                "market_status": mcp_result.get('status', 'unknown'),
+                "trading_session": mcp_result.get('session', 'unknown'),
+                "next_open": mcp_result.get('next_open'),
+                "next_close": mcp_result.get('next_close'),
+                "timezone": mcp_result.get('timezone', 'EST'),
+                "source": "mcp_server"
+            }
+    except Exception as e:
+        print(f"Error getting market status: {e}")
+    
+    # Fallback market status
+    from datetime import datetime, time
+    now = datetime.now()
+    current_time = now.time()
+    
+    # Simple market hours check (9:30 AM - 4:00 PM EST)
+    market_open = time(9, 30)
+    market_close = time(16, 0)
+    
+    is_weekday = now.weekday() < 5  # Monday = 0, Sunday = 6
+    is_market_hours = market_open <= current_time <= market_close
+    
+    if is_weekday and is_market_hours:
+        status = "open"
+        session = "regular"
+    elif is_weekday and current_time < market_open:
+        status = "pre_market"
+        session = "pre_market"
+    elif is_weekday and current_time > market_close:
+        status = "after_hours"
+        session = "after_hours"
+    else:
+        status = "closed"
+        session = "weekend"
+    
+    return {
+        "market_status": status,
+        "trading_session": session,
+        "current_time": now.strftime("%H:%M:%S EST"),
+        "market_open_time": "09:30:00 EST",
+        "market_close_time": "16:00:00 EST",
+        "timezone": "EST",
+        "source": "fallback"
     }

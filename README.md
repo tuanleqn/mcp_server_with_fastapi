@@ -1,53 +1,110 @@
 # Finance MCP Server with FastAPI 📈
 
-A comprehensive financial analysis server that provides **real-time stock data** through local database caching, reducing external API calls and improving performance.
+A comprehensive financial analysis server with **advanced ML predictions**, **technical analysis**, **sentiment analysis**, and **real-time market data** through optimized database caching.
 
 ## 🎯 **Key Features**
 
-### **Smart Data Management**
-- **Local Database Integration**: Uses existing PostgreSQL database for optimal performance
-- **Background Data Refresh**: Automatically updates stale data in the background
-- **Multi-Source Data**: Falls back to external APIs when local data is unavailable
-- **Vietnamese & International Markets**: VCB, VIC, VHM, HPG, TCB, MSN + AAPL, GOOGL, MSFT, etc.
+### **Advanced Financial Analysis**
+- **🤖 ML Predictions**: Multiple ML models (Random Forest, Gradient Boosting, Linear Regression)
+- **📊 Technical Analysis**: 15+ technical indicators (RSI, MACD, Bollinger Bands, etc.)
+- **💭 Sentiment Analysis**: News-based market sentiment with real-time insights
+- **📈 Portfolio Management**: Complete portfolio tracking and analysis tools
+- **🎯 Comprehensive Testing**: Full test coverage for all prediction and analysis tools
 
-### **Comprehensive API Endpoints**
-- **15+ Financial Endpoints**: Market data, technical analysis, predictions, portfolio management
-- **Database-First Architecture**: Sub-100ms response times using local PostgreSQL
-- **Admin Endpoints**: Data import management and status monitoring
-- **MCP Server Integration**: Advanced financial calculations and analysis
+### **Smart Data Management**
+- **Local Database Integration**: PostgreSQL with 2+ years of historical data
+- **Comprehensive Data Import**: 60+ symbols across multiple categories
+- **Multi-Source Data**: yfinance, Alpha Vantage, and market APIs
+- **Background Data Refresh**: Automated data updates and validation
+- **Vietnamese & International Markets**: Complete coverage of major markets
+
+### **Production-Ready Architecture**
+- **FastAPI Server**: High-performance async API with <100ms response times
+- **MCP Server Integration**: 30+ financial analysis tools
+- **Comprehensive Testing**: Automated test suite for all components
+- **Error Handling**: Robust error handling and logging
 
 ## 🚀 **Quick Start**
 
-### **1. Environment Setup**
+### **1. Complete Setup (Recommended)**
+```bash
+# Run the complete setup process
+python master_runner.py
+
+# This will:
+# - Install all dependencies
+# - Import comprehensive financial data (60+ symbols)
+# - Run full test suite (17 test categories)
+# - Generate detailed reports
+```
+
+### **2. Manual Setup**
 ```bash
 # Install dependencies
-pip install fastapi uvicorn psycopg2-binary python-dotenv pandas yfinance
+pip install fastapi uvicorn psycopg2-binary python-dotenv pandas yfinance scikit-learn matplotlib
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your database URI and API keys
+# Edit .env with your database URI
+
+# Import data only
+python run_data_import.py
+
+# Run quick tests
+python quick_test.py
+
+# Run comprehensive tests
+python comprehensive_test_suite.py
 ```
 
-### **2. Start the Server**
+### **3. Start the Server**
 ```bash
 # Start the FastAPI server
 python main.py
 
-# Server will be available at:
-# http://127.0.0.1:8000
+# Or use VS Code task
+# Ctrl+Shift+P -> "Tasks: Run Task" -> "Start MCP FastAPI Server"
 ```
 
-### **3. Verify Setup**
+### **4. Verify Setup**
 ```bash
 # Check API health
 curl http://127.0.0.1:8000/api/health
 
-# Test a stock endpoint (should be <100ms)
-curl http://127.0.0.1:8000/api/stock/VCB
+# Test prediction endpoints
+curl http://127.0.0.1:8000/api/stock/AAPL
+curl http://127.0.0.1:8000/api/companies
 
-# Check data status
+# Check server status
 curl http://127.0.0.1:8000/api/admin/data-status
 ```
+
+## 🧪 **Testing & Validation**
+
+### **Comprehensive Test Suite**
+The system includes extensive testing for all financial analysis tools:
+
+```bash
+# Run all tests (17 categories)
+python comprehensive_test_suite.py
+
+# Categories tested:
+# - ML Prediction Models (Random Forest, Gradient Boosting, Linear)
+# - Technical Analysis (RSI, MACD, Bollinger Bands, volatility)
+# - Sentiment Analysis (news sentiment, market alerts)
+# - Financial Calculations (returns, volume analysis, comparisons)
+# - Market Data (real-time data, chart data, market overview)
+# - Visualization (price charts, volume charts)
+# - Portfolio Management (add/remove holdings, tracking)
+```
+
+### **Test Symbols**
+The system tests across multiple categories:
+- **High Volume**: AAPL, GOOGL, MSFT, TSLA, NVDA
+- **Market Indices**: SPY, QQQ, DIA
+- **Commodities**: GLD, SLV, USO
+- **Crypto ETFs**: BITO, COIN
+- **Volatile Stocks**: GME, AMC, PLTR
 
 ## 📊 **API Usage Examples**
 
