@@ -32,6 +32,9 @@ from mcp_servers import (
     finance_market_data
 )
 
+# Import Direct Finance API (no authentication needed)
+from api.direct_finance_api import router as finance_api_router
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -110,6 +113,10 @@ app = FastAPI(
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
     print("📁 Static files mounted at /static")
+
+# Mount Direct Finance API (no authentication required)
+print("💰 Mounting Direct Finance API routes...")
+app.include_router(finance_api_router, tags=["Direct Finance API"])
 
 # Mount MCP server endpoints
 print("🔗 Mounting MCP endpoints...")
