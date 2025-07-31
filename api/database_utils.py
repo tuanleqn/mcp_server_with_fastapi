@@ -1,80 +1,54 @@
+"""
+Simple database utilities to replace user_db MCP server
+Direct database operations without MCP overhead
+"""
+
+import os
 import psycopg2
 from psycopg2 import Error
-from mcp.server.fastmcp import FastMCP
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_URI = os.getenv("USER_DB_URI", None)
+DB_URI = os.getenv("USER_DB_URI", None) or os.getenv("DATABASE_URL", None)
 
-if not DB_URI:
-    raise ValueError("Database URI not found in environment variables.")
-
-mcp = FastMCP(name="Database MCP Server")
-
-
-@mcp.tool(description="Query user data by name")
-def query_user_data(user_name: str) -> dict:
-    """
-    Retrieves user data from the database by user name.
-
-    Args:
-        user_name (str): The name of the user.
-    Returns:
-        dict: A dictionary containing user data.
-    """
+def query_user_by_name(user_name: str) -> dict:
+    """Query user data by name directly from database."""
+    if not DB_URI:
+        return {"error": "Database URI not configured"}
+    
     try:
         with psycopg2.connect(DB_URI) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM public.users WHERE name = %s", (user_name,))
                 row = cur.fetchone()
-                print(f"Fetched row: {row}")
                 if row is None:
                     return {"error": "User not found"}
                 return {"id": row[0], "name": row[1], "email": row[2], "tool": row[4]}
     except Error as e:
         return {"error": str(e)}
 
-
-@mcp.tool(description="Query user data by email")
-def query_user_data_by_email(user_email: str) -> dict:
-    """
-    Retrieves user data from the database by user email.
-
-    Args:
-        user_email (str): The email of the user.
-    Returns:
-        dict: A dictionary containing user data.
-    """
+def query_user_by_email(user_email: str) -> dict:
+    """Query user data by email directly from database."""
+    if not DB_URI:
+        return {"error": "Database URI not configured"}
+    
     try:
         with psycopg2.connect(DB_URI) as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT * FROM public.users WHERE email = %s", (user_email,)
-                )
+                cur.execute("SELECT * FROM public.users WHERE email = %s", (user_email,))
                 row = cur.fetchone()
-                print(f"Fetched row: {row}")
                 if row is None:
                     return {"error": "User not found"}
                 return {"id": row[0], "name": row[1], "email": row[2], "tool": row[4]}
     except Error as e:
         return {"error": str(e)}
 
-
-@mcp.tool(description="Update user data by ID")
 def update_user_data(user_id: str, name: str, email: str) -> dict:
-    """
-    Updates user data in the database by user ID.
-
-    Args:
-        user_id (str): The ID of the user.
-        name (str): The new name of the user.
-        email (str): The new email of the user.
-
-    Returns:
-        dict: A dictionary indicating success or failure.
-    """
+    """Update user data by ID directly in database."""
+    if not DB_URI:
+        return {"error": "Database URI not configured"}
+    
     try:
         with psycopg2.connect(DB_URI) as conn:
             with conn.cursor() as cur:

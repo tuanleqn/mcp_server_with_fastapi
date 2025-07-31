@@ -18,9 +18,7 @@ from mcp_servers import (
     finance_db_stock_price,
     finance_data_ingestion,
     finance_symbol_discovery,
-    finance_market_data,
-    math,
-    user_db
+    finance_market_data
 )
 
 # Import models
@@ -32,6 +30,7 @@ from .finance_models import (
 
 # Import core utilities
 from .core_endpoints import get_local_stock_data, RELIABLE_SYMBOLS
+from .database_utils import query_user_by_name, query_user_by_email
 
 # Import data utilities (with error handling)
 try:
@@ -770,36 +769,26 @@ async def get_market_status():
 
 @router.get("/api/math/add")
 async def calculate_addition(a: float = Query(description="First number"), b: float = Query(description="Second number")):
-    """Add two numbers using the math MCP server"""
-    try:
-        result = math.add(a=a, b=b)
-        return {
-            "operation": "addition",
-            "operands": {"a": a, "b": b},
-            "result": result,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        print(f"Error in mathematical addition: {e}")
-        return {
-            "operation": "addition",
-            "operands": {"a": a, "b": b},
-            "result": a + b,  # Fallback calculation
-            "timestamp": datetime.now().isoformat(),
-            "fallback": True
-        }
+    """Add two numbers using native Python (simplified from MCP server)"""
+    return {
+        "operation": "addition",
+        "operands": {"a": a, "b": b},
+        "result": a + b,
+        "timestamp": datetime.now().isoformat(),
+        "method": "native_python"
+    }
 
 @router.get("/api/user/{user_name}")
 async def get_user_by_name(user_name: str):
-    """Get user data by name using the user database MCP server"""
+    """Get user data by name using direct database query (simplified from MCP server)"""
     try:
-        result = user_db.query_user_data(user_name=user_name)
+        result = query_user_by_name(user_name=user_name)
         
         if result and "error" not in result:
             return {
                 "status": "success",
                 "user": result,
-                "source": "database"
+                "source": "database_direct"
             }
         else:
             return {
@@ -817,15 +806,15 @@ async def get_user_by_name(user_name: str):
 
 @router.get("/api/user-by-email/{user_email}")
 async def get_user_by_email(user_email: str):
-    """Get user data by email using the user database MCP server"""
+    """Get user data by email using direct database query (simplified from MCP server)"""
     try:
-        result = user_db.query_user_data_by_email(user_email=user_email)
+        result = query_user_by_email(user_email=user_email)
         
         if result and "error" not in result:
             return {
                 "status": "success",
                 "user": result,
-                "source": "database"
+                "source": "database_direct"
             }
         else:
             return {
@@ -1187,7 +1176,7 @@ async def api_health():
             "/api/predictions/{symbol} - AI price predictions",
             "/api/portfolio - Portfolio management",
             "/api/technical-analysis/{symbol} - Technical indicators",
-            "/api/math/add - Mathematical addition",
+            "/api/math/add - Mathematical addition (native Python)",
             "/api/user/{user_name} - User data management",
             "/api/risk-analysis/{symbol} - Risk assessment"
         ],

@@ -12,7 +12,6 @@ import random
 from mcp_servers import (
     finance_market_data,
     finance_news_and_insights,
-    finance_plotting,
     finance_db_company,
     finance_db_stock_price,
     finance_data_ingestion,
@@ -22,7 +21,7 @@ from mcp_servers import (
 # Import models
 from .finance_models import (
     StockData, MarketData, ChartDataPoint, NewsItem, CryptoData, 
-    CommodityData, IndexData, ChartImage, CompanyInfo, MarketOverview
+    CommodityData, IndexData, CompanyInfo, MarketOverview
 )
 
 # Import data utilities (with error handling for missing utils)
@@ -647,45 +646,6 @@ async def get_market_overview():
             },
             "last_updated": datetime.now().isoformat()
         }
-
-@router.get("/api/chart-image/{symbol}")
-async def get_chart_image(
-    symbol: str, 
-    chart_type: str = Query("price", description="Chart type: 'price' or 'volume'"),
-    period: str = "3months"
-) -> ChartImage:
-    """Get base64 encoded chart image"""
-    
-    try:
-        if chart_type == "volume":
-            mcp_result = finance_plotting.plot_stock_volume(
-                symbol=symbol,
-                period=period
-            )
-        else:
-            mcp_result = finance_plotting.plot_stock_price(
-                symbol=symbol,
-                period=period
-            )
-        
-        if mcp_result and mcp_result.get('success'):
-            return ChartImage(
-                symbol=symbol,
-                chart_type=chart_type,
-                image_base64=mcp_result.get('chart_image', ''),
-                timestamp=datetime.now()
-            )
-    
-    except Exception as e:
-        print(f"Error generating chart for {symbol}: {e}")
-    
-    # Return placeholder image data
-    return ChartImage(
-        symbol=symbol,
-        chart_type=chart_type,
-        image_base64="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-        timestamp=datetime.now()
-    )
 
 @router.get("/api/symbol-discovery")
 async def discover_symbols(query: str = Query(description="Search query for symbols")):

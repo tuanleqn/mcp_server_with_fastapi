@@ -1,0 +1,186 @@
+{
+	"info": {
+		"_postman_id": "finance-api-core-endpoints",
+		"name": "Finance API - Core Endpoints",
+		"description": "Core market data endpoints for the Finance MCP Server - Basic stock data, charts, news, crypto, commodities, and indices",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Market Data",
+			"item": [
+				{
+					"name": "Get Market Data for Symbol",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/market-data/AAPL",
+							"host": ["{{base_url}}"],
+							"path": ["api", "market-data", "AAPL"]
+						},
+						"description": "Get market data for a specific symbol (AAPL, GOOGL, MSFT, etc.)"
+					}
+				},
+				{
+					"name": "Get Watchlist Stocks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/watchlist-stocks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "watchlist-stocks"]
+						},
+						"description": "Get top 8 reliable stocks for watchlist display"
+					}
+				},
+				{
+					"name": "Get Individual Stock Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/stock/TSLA",
+							"host": ["{{base_url}}"],
+							"path": ["api", "stock", "TSLA"]
+						},
+						"description": "Get detailed data for a specific stock symbol"
+					}
+				},
+				{
+					"name": "Get Chart Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/chart-data/AAPL?period=1month",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chart-data", "AAPL"],
+							"query": [
+								{
+									"key": "period",
+									"value": "1month",
+									"description": "Options: 1week, 1month, 3months, 6months, 1year"
+								}
+							]
+						},
+						"description": "Get historical price data for charting"
+					}
+				},
+				{
+					"name": "Get Market Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/market-overview",
+							"host": ["{{base_url}}"],
+							"path": ["api", "market-overview"]
+						},
+						"description": "Get comprehensive market overview including tech stocks, indices, commodities"
+					}
+				}
+			],
+			"description": "Core market data endpoints"
+		},
+		{
+			"name": "Asset Classes",
+			"item": [
+				{
+					"name": "Get Crypto Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/crypto-data",
+							"host": ["{{base_url}}"],
+							"path": ["api", "crypto-data"]
+						},
+						"description": "Get cryptocurrency ETF data (BITO, ETHE)"
+					}
+				},
+				{
+					"name": "Get Commodities Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/commodities-data",
+							"host": ["{{base_url}}"],
+							"path": ["api", "commodities-data"]
+						},
+						"description": "Get commodities data (Gold, Silver, Oil, Natural Gas)"
+					}
+				},
+				{
+					"name": "Get Indices Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/indices-data",
+							"host": ["{{base_url}}"],
+							"path": ["api", "indices-data"]
+						},
+						"description": "Get major market indices (S&P 500, Nasdaq, Dow Jones, etc.)"
+					}
+				}
+			],
+			"description": "Different asset classes data"
+		},
+		{
+			"name": "News & Discovery",
+			"item": [
+				{
+					"name": "Get Financial News",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/news?limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "news"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Number of news items to return"
+								}
+							]
+						},
+						"description": "Get latest financial news"
+					}
+				},
+				{
+					"name": "Symbol Discovery",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/symbol-discovery?query=apple",
+							"host": ["{{base_url}}"],
+							"path": ["api", "symbol-discovery"],
+							"query": [
+								{
+									"key": "query",
+									"value": "apple",
+									"description": "Search query for symbols"
+								}
+							]
+						},
+						"description": "Search for stock symbols based on company name or symbol"
+					}
+				}
+			],
+			"description": "News and symbol discovery"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"description": "Base URL for the Finance API server"
+		}
+	]
+}

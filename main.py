@@ -18,15 +18,11 @@ load_dotenv()
 
 # Import MCP servers
 from mcp_servers import (
-    echo, 
-    math, 
-    user_db, 
     finance_db_company, 
     finance_db_stock_price, 
     finance_data_ingestion,
     finance_calculations,
     finance_portfolio,
-    finance_plotting,
     finance_news_and_insights,
     finance_analysis_and_predictions,
     finance_market_data
@@ -44,12 +40,6 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting Finance MCP Server...")
     
     async with contextlib.AsyncExitStack() as stack:
-        # Core utility servers
-        print("📡 Starting core servers...")
-        await stack.enter_async_context(echo.mcp.session_manager.run())
-        await stack.enter_async_context(math.mcp.session_manager.run())
-        await stack.enter_async_context(user_db.mcp.session_manager.run())
-        
         # Database servers
         print("💾 Starting database servers...")
         await stack.enter_async_context(finance_db_company.mcp.session_manager.run())
@@ -60,7 +50,6 @@ async def lifespan(app: FastAPI):
         await stack.enter_async_context(finance_data_ingestion.mcp.session_manager.run())
         await stack.enter_async_context(finance_calculations.mcp.session_manager.run())
         await stack.enter_async_context(finance_portfolio.mcp.session_manager.run())
-        await stack.enter_async_context(finance_plotting.mcp.session_manager.run())
         await stack.enter_async_context(finance_news_and_insights.mcp.session_manager.run())
         await stack.enter_async_context(finance_analysis_and_predictions.mcp.session_manager.run())
         await stack.enter_async_context(finance_market_data.mcp.session_manager.run())
@@ -97,11 +86,6 @@ app = FastAPI(
     - Company and stock price databases
     - Data ingestion from multiple sources
     - Historical data storage and retrieval
-    
-    ### 🔧 Utility Tools
-    - Mathematical calculations
-    - User management
-    - Echo service for testing
     """,
     version="1.0.0",
     lifespan=lifespan,
@@ -120,11 +104,6 @@ app.include_router(finance_api_router, tags=["Direct Finance API"])
 
 # Mount MCP server endpoints
 print("🔗 Mounting MCP endpoints...")
-
-# Core utility endpoints
-app.mount("/echo/", echo.mcp.streamable_http_app(), name="echo")
-app.mount("/math/", math.mcp.streamable_http_app(), name="math")
-app.mount("/user_db/", user_db.mcp.streamable_http_app(), name="user_db")
 
 # Database endpoints
 app.mount(
@@ -153,11 +132,6 @@ app.mount(
     "/finance_portfolio/",
     finance_portfolio.mcp.streamable_http_app(),
     name="finance_portfolio",
-)
-app.mount(
-    "/finance_plotting/",
-    finance_plotting.mcp.streamable_http_app(),
-    name="finance_plotting",
 )
 app.mount(
     "/finance_news_and_insights/",
@@ -200,10 +174,9 @@ async def read_root():
             "available_tools": "/tools"
         },
         "mcp_servers": [
-            "echo", "math", "user_db", 
             "finance_db_company", "finance_db_stock_price", 
             "finance_data_ingestion", "finance_calculations",
-            "finance_portfolio", "finance_plotting", 
+            "finance_portfolio", 
             "finance_news_and_insights", "finance_analysis_and_predictions",
             "finance_market_data"
         ]
@@ -221,16 +194,15 @@ async def health_check():
         "version": "1.0.0",
         "uptime": "operational",
         "mcp_servers": {
-            "core": ["echo", "math", "user_db"],
             "database": ["finance_db_company", "finance_db_stock_price"],
             "analysis": [
                 "finance_data_ingestion", "finance_calculations",
-                "finance_portfolio", "finance_plotting", 
+                "finance_portfolio", 
                 "finance_news_and_insights", "finance_analysis_and_predictions",
                 "finance_market_data"
             ]
         },
-        "endpoints_count": 12,
+        "endpoints_count": 8,
         "environment": {
             "has_api_keys": bool(os.getenv("EXTERNAL_FINANCE_API_KEY")),
             "static_files": os.path.exists("static")
@@ -262,15 +234,11 @@ async def server_status():
             "database_path": os.path.exists("data") if os.path.exists("data") else "Not configured"
         },
         "mcp_endpoints": {
-            "/echo/": "Echo service for testing",
-            "/math/": "Mathematical calculations",
-            "/user_db/": "User management",
             "/finance_db_company/": "Company database operations",
             "/finance_db_stock_price/": "Stock price database",
             "/finance_data_ingestion/": "Data ingestion tools",
             "/finance_calculations/": "Financial calculations",
             "/finance_portfolio/": "Portfolio management",
-            "/finance_plotting/": "Chart and plot generation",
             "/finance_news_and_insights/": "News and market insights",
             "/finance_analysis_and_predictions/": "Analysis and predictions",
             "/finance_market_data/": "Real-time market data"
@@ -285,11 +253,6 @@ async def available_tools():
     """
     return {
         "available_tools": {
-            "core_utilities": {
-                "echo": "Simple echo service for testing connectivity",
-                "math": "Mathematical operations and calculations",
-                "user_db": "User management and authentication"
-            },
             "database_operations": {
                 "finance_db_company": "Company information storage and retrieval",
                 "finance_db_stock_price": "Historical stock price data management"
@@ -301,9 +264,6 @@ async def available_tools():
             },
             "portfolio_management": {
                 "finance_portfolio": "Portfolio tracking, optimization, and analysis"
-            },
-            "visualization": {
-                "finance_plotting": "Generate charts and visualizations"
             },
             "intelligence": {
                 "finance_news_and_insights": "News aggregation and sentiment analysis",
@@ -327,10 +287,9 @@ async def not_found_handler(request, exc):
                 "/", "/docs", "/health", "/status", "/tools"
             ],
             "mcp_endpoints": [
-                "/echo/", "/math/", "/user_db/",
                 "/finance_db_company/", "/finance_db_stock_price/",
                 "/finance_data_ingestion/", "/finance_calculations/",
-                "/finance_portfolio/", "/finance_plotting/",
+                "/finance_portfolio/",
                 "/finance_news_and_insights/", "/finance_analysis_and_predictions/",
                 "/finance_market_data/"
             ]
