@@ -342,8 +342,17 @@ async def get_chart_data(symbol: str, background_tasks: BackgroundTasks, period:
         chart_data = []
         
         for item in raw_data:
+            # Get time/date value and ensure it's a string
+            time_value = item.get('timestamp', item.get('datetime', ''))
+            if hasattr(time_value, 'strftime'):  # It's a date/datetime object
+                time_str = time_value.strftime("%Y-%m-%d")
+            elif hasattr(time_value, 'isoformat'):  # It's a datetime object
+                time_str = time_value.isoformat()[:10]  # Get just the date part
+            else:
+                time_str = str(time_value)  # Convert to string
+            
             chart_data.append(ChartDataPoint(
-                time=item.get('timestamp', item.get('datetime', '')),
+                time=time_str,
                 price=float(item.get('close', 0))
             ))
         

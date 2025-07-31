@@ -1315,3 +1315,95 @@ def get_available_markets() -> dict:
             {"value": "5years", "label": "5 Years"}
         ]
     }
+
+@mcp.tool(description="Get current market status and trading hours")
+def get_market_status() -> dict:
+    """
+    Get current market status including trading hours and market state.
+    
+    Returns:
+        dict: Market status information
+    """
+    try:
+        current_time = datetime.now()
+        
+        # Market hours (EST/EDT)
+        market_open_hour = 9
+        market_open_minute = 30
+        market_close_hour = 16
+        market_close_minute = 0
+        
+        # Check if it's a weekday
+        is_weekday = current_time.weekday() < 5  # Monday = 0, Sunday = 6
+        
+        # Create market open/close times for today
+        market_open = current_time.replace(
+            hour=market_open_hour, 
+            minute=market_open_minute, 
+            second=0, 
+            microsecond=0
+        )
+        market_close = current_time.replace(
+            hour=market_close_hour, 
+            minute=market_close_minute, 
+            second=0, 
+            microsecond=0
+        )
+        
+        # Determine market status
+        if not is_weekday:
+            status = "closed"
+            session = "weekend"
+        elif current_time < market_open:
+            status = "pre_market"
+            session = "pre_market"
+        elif current_time > market_close:
+            status = "after_hours"
+            session = "after_hours"
+        else:
+            status = "open"
+            session = "regular"
+        
+        # Calculate next market open/close
+        if status == "open":
+            next_change = market_close
+            next_change_type = "close"
+        elif status == "after_hours":
+            # Next market open is tomorrow (or Monday if Friday)
+            days_ahead = 3 if current_time.weekday() == 4 else 1  # Friday -> Monday
+            next_change = market_open + timedelta(days=days_ahead)
+            next_change_type = "open"
+        elif status == "weekend":
+            # Next market open is Monday
+            days_ahead = 7 - current_time.weekday()  # Days until Monday
+            next_change = market_open + timedelta(days=days_ahead)
+            next_change_type = "open"
+        else:  # pre_market
+            next_change = market_open
+            next_change_type = "open"
+        
+        return {
+            "success": True,
+            "market_status": status,
+            "session": session,
+            "is_open": status == "open",
+            "current_time": current_time.isoformat(),
+            "market_hours": {
+                "open": f"{market_open_hour:02d}:{market_open_minute:02d} EST",
+                "close": f"{market_close_hour:02d}:{market_close_minute:02d} EST"
+            },
+            "next_change": {
+                "time": next_change.isoformat(),
+                "type": next_change_type,
+                "minutes_until": int((next_change - current_time).total_seconds() / 60)
+            },
+            "timezone": "US Eastern Time",
+            "trading_days": "Monday - Friday"
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "market_status": "unknown"
+        }

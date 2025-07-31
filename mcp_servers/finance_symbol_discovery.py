@@ -10,6 +10,10 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import asyncio
+from mcp.server.fastmcp import FastMCP
+
+# MCP Server instance
+mcp = FastMCP(name="Finance MCP Server - Symbol Discovery")
 
 # Database configuration
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "symbols.db")
@@ -462,3 +466,93 @@ def cache_price_data(symbol_key: str, price_data: List[Dict], interval: str,
 def cleanup_expired_cache():
     """Remove expired cache entries"""
     symbol_db.cleanup_expired_cache()
+
+# MCP Tools
+@mcp.tool(description="Discover and search for financial symbols")
+def discover_symbols(query: str, limit: int = 10) -> dict:
+    """
+    Discover financial symbols based on search query.
+    
+    Args:
+        query (str): Search query (company name or symbol)
+        limit (int): Maximum number of results to return
+        
+    Returns:
+        dict: List of discovered symbols with metadata
+    """
+    try:
+        # Search in local database first
+        results = symbol_db.search_symbols(query, limit)
+        
+        if results:
+            return {
+                "success": True,
+                "query": query,
+                "results": results[:limit],
+                "source": "database",
+                "count": len(results[:limit])
+            }
+        else:
+            # If no local results, return a mock response for now
+            # In production, this would integrate with external APIs
+            mock_results = [
+                {
+                    "symbol": query.upper() if len(query) <= 5 else f"{query[:3].upper()}",
+                    "name": f"Sample Company for {query}",
+                    "type": "stock",
+                    "exchange": "NASDAQ",
+                    "currency": "USD"
+                }
+            ]
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": mock_results,
+                "source": "mock",
+                "count": len(mock_results),
+                "note": "Mock data - integrate with real API for production"
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "query": query
+        }
+
+@mcp.tool(description="Search for symbols with advanced filtering")
+def search_symbols(query: str, symbol_type: str = "all", limit: int = 10) -> dict:
+    """
+    Advanced symbol search with filtering.
+    
+    Args:
+        query (str): Search query
+        symbol_type (str): Filter by type (stock, etf, crypto, etc.)
+        limit (int): Maximum results
+        
+    Returns:
+        dict: Filtered search results
+    """
+    try:
+        # Use the discover_symbols function and filter results if needed
+        results = discover_symbols(query, limit)
+        
+        if results.get("success") and symbol_type != "all":
+            filtered_results = [
+                r for r in results.get("results", []) 
+                if r.get("type", "").lower() == symbol_type.lower()
+            ]
+            results["results"] = filtered_results
+            results["count"] = len(filtered_results)
+            results["filter_applied"] = symbol_type
+        
+        return results
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "query": query,
+            "filter": symbol_type
+        }

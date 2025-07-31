@@ -500,3 +500,9 @@ def get_breaking_news(limit: int = 5) -> dict:
         "alert_level": "high" if any(a.get("urgency") == "urgent" for a in breaking_news[:limit]) else "normal",
         "retrieved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
+
+# Alias function for API compatibility
+@mcp.tool(description="Get market news - wrapper for get_financial_news")
+def get_market_news(limit: int = 10) -> dict:
+    """Wrapper function for API compatibility"""
+    return get_financial_news(symbol=None, limit=limit, source="auto")

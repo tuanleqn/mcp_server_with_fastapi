@@ -616,3 +616,170 @@ def analyze_price_range(symbol: str, start_date: str, end_date: str) -> dict:
                     return {"error": f"No price data found for {symbol} between {start_date} and {end_date}"}
     except Error as e:
         return {"error": f"Database error: {str(e)}"}
+
+# Alias functions for API compatibility
+@mcp.tool(description="Predict stock price - wrapper for predict_stock_price_advanced")
+def predict_stock_price(symbol: str, days_ahead: int = 1) -> dict:
+    """Wrapper function for API compatibility"""
+    return predict_stock_price_advanced(symbol, days_ahead, "best")
+
+@mcp.tool(description="Analyze stock trend - wrapper for analyze_stock_trends")
+def analyze_stock_trend(symbol: str, period: str = "6months") -> dict:
+    """Wrapper function for API compatibility"""
+    # Convert period string to days
+    period_days = {
+        "1week": 7,
+        "1month": 30,
+        "3months": 90,
+        "6months": 180,
+        "1year": 365
+    }.get(period, 60)
+    
+    return analyze_stock_trends(symbol, period_days)
+
+@mcp.tool(description="Analyze market sectors and rotation signals")
+def analyze_sectors() -> dict:
+    """
+    Analyzes major market sectors for rotation signals and performance.
+    """
+    sectors = {
+        "Technology": ["AAPL", "GOOGL", "MSFT", "NVDA"],
+        "Healthcare": ["JNJ", "PFE", "UNH", "ABBV"], 
+        "Financial": ["JPM", "BAC", "WFC", "GS"],
+        "Energy": ["XOM", "CVX", "COP", "EOG"],
+        "Consumer": ["AMZN", "TSLA", "HD", "MCD"]
+    }
+    
+    sector_analysis = {}
+    
+    for sector_name, symbols in sectors.items():
+        try:
+            # Get recent performance for sector symbols
+            sector_performance = []
+            for symbol in symbols:
+                result = analyze_price_range(symbol, 
+                    (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"),
+                    datetime.now().strftime("%Y-%m-%d"))
+                if "error" not in result:
+                    # Calculate approximate return
+                    recent_return = ((result["highest_price"] - result["lowest_price"]) / result["lowest_price"]) * 100
+                    sector_performance.append(recent_return)
+            
+            if sector_performance:
+                avg_performance = sum(sector_performance) / len(sector_performance)
+                sector_analysis[sector_name] = {
+                    "average_performance": round(avg_performance, 2),
+                    "symbols": symbols,
+                    "trend": "bullish" if avg_performance > 5 else "bearish" if avg_performance < -5 else "neutral"
+                }
+            else:
+                sector_analysis[sector_name] = {
+                    "error": "No data available",
+                    "symbols": symbols
+                }
+                
+        except Exception as e:
+            sector_analysis[sector_name] = {
+                "error": str(e),
+                "symbols": symbols
+            }
+    
+    return {
+        "sector_analysis": sector_analysis,
+        "market_rotation_signal": "technology_leading" if sector_analysis.get("Technology", {}).get("average_performance", 0) > 10 else "defensive_rotation",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@mcp.tool(description="Calculate correlation matrix between stocks")
+def calculate_correlation_matrix(symbols: str, period: str = "6months") -> dict:
+    """
+    Calculate correlation matrix between multiple stocks.
+    
+    Args:
+        symbols (str): Comma-separated list of stock symbols
+        period (str): Time period for analysis
+    
+    Returns:
+        dict: Correlation matrix and analysis
+    """
+    try:
+        symbol_list = [s.strip().upper() for s in symbols.split(",")]
+        
+        # Convert period to days
+        period_days = {
+            "1week": 7,
+            "1month": 30,
+            "3months": 90,
+            "6months": 180,
+            "1year": 365
+        }.get(period, 180)
+        
+        start_date = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get price data for all symbols
+        price_data = {}
+        
+        for symbol in symbol_list:
+            try:
+                with psycopg2.connect(DB_URI) as conn:
+                    with conn.cursor() as cur:
+                        query = """
+                        SELECT date, close_price
+                        FROM public."STOCK_PRICES"
+                        WHERE symbol = %s AND date >= %s AND date <= %s
+                        ORDER BY date ASC
+                        """
+                        cur.execute(query, (symbol, start_date, end_date))
+                        rows = cur.fetchall()
+                        
+                        if rows:
+                            dates = [row[0] for row in rows]
+                            prices = [float(row[1]) for row in rows]
+                            price_data[symbol] = {"dates": dates, "prices": prices}
+            except Error as e:
+                continue
+        
+        if len(price_data) < 2:
+            return {"error": "Insufficient data for correlation analysis"}
+        
+        # Calculate correlations (simplified)
+        correlations = {}
+        
+        for symbol1 in price_data:
+            correlations[symbol1] = {}
+            for symbol2 in price_data:
+                if symbol1 == symbol2:
+                    correlations[symbol1][symbol2] = 1.0
+                else:
+                    # Simple correlation calculation using price returns
+                    prices1 = price_data[symbol1]["prices"]
+                    prices2 = price_data[symbol2]["prices"]
+                    
+                    if len(prices1) > 1 and len(prices2) > 1:
+                        # Calculate returns
+                        returns1 = [(prices1[i] - prices1[i-1]) / prices1[i-1] for i in range(1, len(prices1))]
+                        returns2 = [(prices2[i] - prices2[i-1]) / prices2[i-1] for i in range(1, len(prices2))]
+                        
+                        # Simple correlation coefficient
+                        if len(returns1) == len(returns2) and len(returns1) > 0:
+                            try:
+                                correlation = np.corrcoef(returns1, returns2)[0, 1]
+                                correlations[symbol1][symbol2] = round(float(correlation), 3)
+                            except:
+                                correlations[symbol1][symbol2] = 0.0
+                        else:
+                            correlations[symbol1][symbol2] = 0.0
+                    else:
+                        correlations[symbol1][symbol2] = 0.0
+        
+        return {
+            "correlation_matrix": correlations,
+            "symbols": symbol_list,
+            "period": period,
+            "analysis_period": f"{start_date} to {end_date}",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {"error": f"Error calculating correlation matrix: {str(e)}"}

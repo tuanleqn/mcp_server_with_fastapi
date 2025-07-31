@@ -1,0 +1,825 @@
+{
+	"info": {
+		"_postman_id": "finance-api-complete-collection",
+		"name": "Finance API - Complete Collection",
+		"description": "Complete Finance MCP Server API collection - All endpoints including core market data, advanced analytics, portfolio management, and MCP server access",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "🏠 Main Server",
+			"item": [
+				{
+					"name": "Server Root",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": ["{{base_url}}"],
+							"path": [""]
+						},
+						"description": "Main server root endpoint with API overview"
+					}
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Server health status and MCP servers status"
+					}
+				},
+				{
+					"name": "Server Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["status"]
+						},
+						"description": "Detailed server status, configuration, and endpoints"
+					}
+				},
+				{
+					"name": "Available Tools",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tools",
+							"host": ["{{base_url}}"],
+							"path": ["tools"]
+						},
+						"description": "List all available MCP tools and capabilities"
+					}
+				}
+			],
+			"description": "Main server endpoints for health checks and system information"
+		},
+		{
+			"name": "📈 Core Market Data",
+			"item": [
+				{
+					"name": "Get Market Data for Symbol",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/market-data/{{test_symbol}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "market-data", "{{test_symbol}}"]
+						},
+						"description": "Get market data for a specific symbol (AAPL, GOOGL, MSFT, etc.)"
+					}
+				},
+				{
+					"name": "Get Watchlist Stocks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/watchlist-stocks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "watchlist-stocks"]
+						},
+						"description": "Get top 8 reliable stocks for watchlist display"
+					}
+				},
+				{
+					"name": "Get Individual Stock Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/stock/TSLA",
+							"host": ["{{base_url}}"],
+							"path": ["api", "stock", "TSLA"]
+						},
+						"description": "Get detailed data for a specific stock symbol"
+					}
+				},
+				{
+					"name": "Get Chart Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/chart-data/{{test_symbol}}?period={{period_1month}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chart-data", "{{test_symbol}}"],
+							"query": [
+								{
+									"key": "period",
+									"value": "{{period_1month}}",
+									"description": "Options: 1week, 1month, 3months, 6months, 1year"
+								}
+							]
+						},
+						"description": "Get historical price data for charting"
+					}
+				},
+				{
+					"name": "Get Market Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/market-overview",
+							"host": ["{{base_url}}"],
+							"path": ["api", "market-overview"]
+						},
+						"description": "Get comprehensive market overview including tech stocks, indices, commodities"
+					}
+				}
+			],
+			"description": "Core market data endpoints for stocks, charts, and market overview"
+		},
+		{
+			"name": "💰 Asset Classes",
+			"item": [
+				{
+					"name": "Get Crypto Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/crypto-data",
+							"host": ["{{base_url}}"],
+							"path": ["api", "crypto-data"]
+						},
+						"description": "Get cryptocurrency ETF data (BITO, ETHE)"
+					}
+				},
+				{
+					"name": "Get Commodities Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/commodities-data",
+							"host": ["{{base_url}}"],
+							"path": ["api", "commodities-data"]
+						},
+						"description": "Get commodities data (Gold, Silver, Oil, Natural Gas)"
+					}
+				},
+				{
+					"name": "Get Indices Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/indices-data",
+							"host": ["{{base_url}}"],
+							"path": ["api", "indices-data"]
+						},
+						"description": "Get major market indices (S&P 500, Nasdaq, Dow Jones, etc.)"
+					}
+				}
+			],
+			"description": "Different asset classes: crypto ETFs, commodities, and market indices"
+		},
+		{
+			"name": "📰 News & Discovery",
+			"item": [
+				{
+					"name": "Get Financial News",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/news?limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "news"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Number of news items to return"
+								}
+							]
+						},
+						"description": "Get latest financial news"
+					}
+				},
+				{
+					"name": "Symbol Discovery",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/symbol-discovery?query=apple",
+							"host": ["{{base_url}}"],
+							"path": ["api", "symbol-discovery"],
+							"query": [
+								{
+									"key": "query",
+									"value": "apple",
+									"description": "Search query for symbols"
+								}
+							]
+						},
+						"description": "Search for stock symbols based on company name or symbol"
+					}
+				}
+			],
+			"description": "News and symbol discovery functionality"
+		},
+		{
+			"name": "🔮 Analysis & Predictions",
+			"item": [
+				{
+					"name": "Get Stock Predictions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/predictions/{{test_symbol}}?days_ahead=30",
+							"host": ["{{base_url}}"],
+							"path": ["api", "predictions", "{{test_symbol}}"],
+							"query": [
+								{
+									"key": "days_ahead",
+									"value": "30",
+									"description": "Number of days to predict ahead"
+								}
+							]
+						},
+						"description": "Get AI-powered stock price predictions"
+					}
+				},
+				{
+					"name": "Get Technical Analysis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/technical-analysis/{{test_symbol}}?period={{period_6months}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "technical-analysis", "{{test_symbol}}"],
+							"query": [
+								{
+									"key": "period",
+									"value": "{{period_6months}}",
+									"description": "Analysis period"
+								}
+							]
+						},
+						"description": "Get comprehensive technical analysis with RSI, MACD, Bollinger Bands"
+					}
+				},
+				{
+					"name": "Get Risk Analysis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/risk-analysis/{{test_symbol}}?period={{period_6months}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-analysis", "{{test_symbol}}"],
+							"query": [
+								{
+									"key": "period",
+									"value": "{{period_6months}}",
+									"description": "Risk analysis period"
+								}
+							]
+						},
+						"description": "Get comprehensive risk analysis for a stock"
+					}
+				},
+				{
+					"name": "Get Market Sentiment",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/market-sentiment",
+							"host": ["{{base_url}}"],
+							"path": ["api", "market-sentiment"]
+						},
+						"description": "Get overall market sentiment analysis"
+					}
+				},
+				{
+					"name": "Get Sector Analysis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/sector-analysis",
+							"host": ["{{base_url}}"],
+							"path": ["api", "sector-analysis"]
+						},
+						"description": "Get comprehensive sector analysis and rotation signals"
+					}
+				}
+			],
+			"description": "Advanced analysis, predictions, and market intelligence"
+		},
+		{
+			"name": "📊 Portfolio Management",
+			"item": [
+				{
+					"name": "Get Portfolio Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/portfolio",
+							"host": ["{{base_url}}"],
+							"path": ["api", "portfolio"]
+						},
+						"description": "Get portfolio performance data and positions"
+					}
+				},
+				{
+					"name": "Get Portfolio Analysis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/portfolio/analysis",
+							"host": ["{{base_url}}"],
+							"path": ["api", "portfolio", "analysis"]
+						},
+						"description": "Get detailed portfolio analysis with risk metrics"
+					}
+				},
+				{
+					"name": "Get Portfolio Optimization",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/portfolio/optimization?risk_level={{risk_level_moderate}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "portfolio", "optimization"],
+							"query": [
+								{
+									"key": "risk_level",
+									"value": "{{risk_level_moderate}}",
+									"description": "Risk level: conservative, moderate, aggressive"
+								}
+							]
+						},
+						"description": "Get portfolio optimization suggestions"
+					}
+				},
+				{
+					"name": "Get Portfolio Risk-Return",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/portfolio/risk-return",
+							"host": ["{{base_url}}"],
+							"path": ["api", "portfolio", "risk-return"]
+						},
+						"description": "Get portfolio risk-return analysis"
+					}
+				}
+			],
+			"description": "Portfolio management, analysis, and optimization"
+		},
+		{
+			"name": "🧮 Financial Calculations",
+			"item": [
+				{
+					"name": "Calculate Stock Return",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/stock-return/{{test_symbol}}?start_date={{start_date}}&end_date={{end_date}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "stock-return", "{{test_symbol}}"],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "{{start_date}}",
+									"description": "Start date (YYYY-MM-DD)"
+								},
+								{
+									"key": "end_date",
+									"value": "{{end_date}}",
+									"description": "End date (YYYY-MM-DD)"
+								}
+							]
+						},
+						"description": "Calculate stock return between two dates"
+					}
+				},
+				{
+					"name": "Get Trading Volume",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/trading-volume/{{test_symbol}}?period={{period_1month}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trading-volume", "{{test_symbol}}"],
+							"query": [
+								{
+									"key": "period",
+									"value": "{{period_1month}}",
+									"description": "Period for volume analysis"
+								}
+							]
+						},
+						"description": "Get average trading volume analysis"
+					}
+				},
+				{
+					"name": "Calculate Compound Return",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/calculations/compound-return?principal=10000&rate=0.08&time=5&compound_frequency=12",
+							"host": ["{{base_url}}"],
+							"path": ["api", "calculations", "compound-return"],
+							"query": [
+								{
+									"key": "principal",
+									"value": "10000",
+									"description": "Initial investment amount"
+								},
+								{
+									"key": "rate",
+									"value": "0.08",
+									"description": "Annual interest rate (as decimal)"
+								},
+								{
+									"key": "time",
+									"value": "5",
+									"description": "Time period in years"
+								},
+								{
+									"key": "compound_frequency",
+									"value": "12",
+									"description": "Compounding frequency per year"
+								}
+							]
+						},
+						"description": "Calculate compound interest return"
+					}
+				},
+				{
+					"name": "Math Addition",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/math/add?a=100&b=50",
+							"host": ["{{base_url}}"],
+							"path": ["api", "math", "add"],
+							"query": [
+								{
+									"key": "a",
+									"value": "100",
+									"description": "First number"
+								},
+								{
+									"key": "b",
+									"value": "50",
+									"description": "Second number"
+								}
+							]
+						},
+						"description": "Add two numbers (utility function)"
+					}
+				}
+			],
+			"description": "Financial calculations, returns, volume analysis, and math utilities"
+		},
+		{
+			"name": "🔍 Market Intelligence",
+			"item": [
+				{
+					"name": "Get Correlation Matrix",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/market/correlation-matrix?symbols={{test_symbols_list}}&period={{period_6months}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "market", "correlation-matrix"],
+							"query": [
+								{
+									"key": "symbols",
+									"value": "{{test_symbols_list}}",
+									"description": "Comma-separated list of symbols"
+								},
+								{
+									"key": "period",
+									"value": "{{period_6months}}",
+									"description": "Analysis period"
+								}
+							]
+						},
+						"description": "Get correlation matrix between stocks"
+					}
+				},
+				{
+					"name": "Search Symbols",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/search/symbols?query=technology&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "search", "symbols"],
+							"query": [
+								{
+									"key": "query",
+									"value": "technology",
+									"description": "Search query"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Maximum results"
+								}
+							]
+						},
+						"description": "Advanced symbol search with filtering"
+					}
+				},
+				{
+					"name": "Get Market Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/market/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "market", "status"]
+						},
+						"description": "Get current market status and trading hours"
+					}
+				}
+			],
+			"description": "Market intelligence, correlations, and advanced search"
+		},
+		{
+			"name": "👤 User Management",
+			"item": [
+				{
+					"name": "Get User by Name",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/user/{{test_user_name}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "user", "{{test_user_name}}"]
+						},
+						"description": "Get user data by username"
+					}
+				},
+				{
+					"name": "Get User by Email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/user-by-email/{{test_user_email}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "user-by-email", "{{test_user_email}}"]
+						},
+						"description": "Get user data by email address"
+					}
+				}
+			],
+			"description": "User management and authentication endpoints"
+		},
+		{
+			"name": "💾 Database Access",
+			"item": [
+				{
+					"name": "Get Stock Price from Database",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/database/stock-price/{{test_symbol}}?start_date={{start_date}}&end_date={{end_date}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "database", "stock-price", "{{test_symbol}}"],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "{{start_date}}",
+									"description": "Start date (optional)"
+								},
+								{
+									"key": "end_date",
+									"value": "{{end_date}}",
+									"description": "End date (optional)"
+								}
+							]
+						},
+						"description": "Get stock price data directly from database"
+					}
+				},
+				{
+					"name": "Get Company from Database",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/database/company/{{test_symbol}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "database", "company", "{{test_symbol}}"]
+						},
+						"description": "Get company information directly from database"
+					}
+				},
+				{
+					"name": "Get Company Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/company-info/{{test_symbol}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "company-info", "{{test_symbol}}"]
+						},
+						"description": "Get detailed company information"
+					}
+				}
+			],
+			"description": "Direct database access for stock prices and company data"
+		},
+		{
+			"name": "🔧 MCP Server Access",
+			"item": [
+				{
+					"name": "Company Database MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_db_company/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_db_company", ""]
+						},
+						"description": "Access finance_db_company MCP server directly"
+					}
+				},
+				{
+					"name": "Stock Price Database MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_db_stock_price/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_db_stock_price", ""]
+						},
+						"description": "Access finance_db_stock_price MCP server directly"
+					}
+				},
+				{
+					"name": "Market Data MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_market_data/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_market_data", ""]
+						},
+						"description": "Access finance_market_data MCP server directly"
+					}
+				},
+				{
+					"name": "Data Ingestion MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_data_ingestion/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_data_ingestion", ""]
+						},
+						"description": "Access finance_data_ingestion MCP server directly"
+					}
+				},
+				{
+					"name": "Calculations MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_calculations/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_calculations", ""]
+						},
+						"description": "Access finance_calculations MCP server directly"
+					}
+				},
+				{
+					"name": "Portfolio MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_portfolio/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_portfolio", ""]
+						},
+						"description": "Access finance_portfolio MCP server directly"
+					}
+				},
+				{
+					"name": "News and Insights MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_news_and_insights/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_news_and_insights", ""]
+						},
+						"description": "Access finance_news_and_insights MCP server directly"
+					}
+				},
+				{
+					"name": "Analysis and Predictions MCP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finance_analysis_and_predictions/",
+							"host": ["{{base_url}}"],
+							"path": ["finance_analysis_and_predictions", ""]
+						},
+						"description": "Access finance_analysis_and_predictions MCP server directly"
+					}
+				}
+			],
+			"description": "Direct access to individual MCP servers for debugging and testing"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"description": "Base URL for the Finance API server"
+		},
+		{
+			"key": "test_symbol",
+			"value": "AAPL",
+			"description": "Default test symbol for single stock requests"
+		},
+		{
+			"key": "test_symbols_list",
+			"value": "AAPL,GOOGL,MSFT,TSLA",
+			"description": "Comma-separated list of symbols for multi-stock requests"
+		},
+		{
+			"key": "test_user_name",
+			"value": "john_doe",
+			"description": "Test username for user management endpoints"
+		},
+		{
+			"key": "test_user_email",
+			"value": "john@example.com",
+			"description": "Test email for user management endpoints"
+		},
+		{
+			"key": "start_date",
+			"value": "2024-01-01",
+			"description": "Default start date for date range queries"
+		},
+		{
+			"key": "end_date",
+			"value": "2024-12-31",
+			"description": "Default end date for date range queries"
+		},
+		{
+			"key": "period_1month",
+			"value": "1month",
+			"description": "1 month period for analysis"
+		},
+		{
+			"key": "period_6months",
+			"value": "6months",
+			"description": "6 months period for analysis"
+		},
+		{
+			"key": "risk_level_moderate",
+			"value": "moderate",
+			"description": "Moderate risk level for portfolio optimization"
+		}
+	]
+}

@@ -451,9 +451,28 @@ async def get_trading_volume(symbol: str, period: str = "1month"):
     """Get average trading volume analysis"""
     
     try:
+        # Convert period to date range
+        from datetime import datetime, timedelta
+        
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        
+        if period == "1week":
+            start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        elif period == "1month":
+            start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        elif period == "3months":
+            start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+        elif period == "6months":
+            start_date = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+        elif period == "1year":
+            start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+        else:
+            start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        
         mcp_result = finance_calculations.calculate_average_volume(
             symbol=symbol,
-            period=period
+            start_date=start_date,
+            end_date=end_date
         )
         
         if mcp_result and mcp_result.get('success'):

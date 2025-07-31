@@ -25,7 +25,8 @@ from mcp_servers import (
     finance_portfolio,
     finance_news_and_insights,
     finance_analysis_and_predictions,
-    finance_market_data
+    finance_market_data,
+    finance_symbol_discovery
 )
 
 # Import Direct Finance API (no authentication needed)
@@ -53,6 +54,7 @@ async def lifespan(app: FastAPI):
         await stack.enter_async_context(finance_news_and_insights.mcp.session_manager.run())
         await stack.enter_async_context(finance_analysis_and_predictions.mcp.session_manager.run())
         await stack.enter_async_context(finance_market_data.mcp.session_manager.run())
+        await stack.enter_async_context(finance_symbol_discovery.mcp.session_manager.run())
         
         print("✅ All MCP servers started successfully!")
         yield
@@ -148,9 +150,14 @@ app.mount(
     finance_market_data.mcp.streamable_http_app(),
     name="finance_market_data",
 )
+app.mount(
+    "/finance_symbol_discovery/",
+    finance_symbol_discovery.mcp.streamable_http_app(),
+    name="finance_symbol_discovery",
+)
 
 
-@app.get("/", response_class=HTMLResponse, tags=["Root"])
+@app.get("/", tags=["Root"])
 async def read_root():
     """
     Root endpoint - returns dashboard or API information
@@ -161,7 +168,7 @@ async def read_root():
             return HTMLResponse(content=f.read())
     
     # Otherwise return JSON API info
-    return {
+    return JSONResponse(content={
         "message": "🏦 Finance MCP Server",
         "status": "operational",
         "version": "1.0.0",
@@ -178,9 +185,9 @@ async def read_root():
             "finance_data_ingestion", "finance_calculations",
             "finance_portfolio", 
             "finance_news_and_insights", "finance_analysis_and_predictions",
-            "finance_market_data"
+            "finance_market_data", "finance_symbol_discovery"
         ]
-    }
+    })
 
 
 @app.get("/health", tags=["Health"])
@@ -199,7 +206,7 @@ async def health_check():
                 "finance_data_ingestion", "finance_calculations",
                 "finance_portfolio", 
                 "finance_news_and_insights", "finance_analysis_and_predictions",
-                "finance_market_data"
+                "finance_market_data", "finance_symbol_discovery"
             ]
         },
         "endpoints_count": 8,

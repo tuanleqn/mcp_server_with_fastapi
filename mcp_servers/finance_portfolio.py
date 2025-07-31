@@ -196,3 +196,217 @@ def remove_stock_holding(user_id: int, symbol: str, quantity_to_remove: int = No
         return {"error": f"Database error: {str(e)}"}
     except Exception as e:
         return {"error": f"Failed to remove stock holding: {str(e)}"}
+
+@mcp.tool(description="Analyze portfolio performance and risk metrics")
+def analyze_portfolio(user_id: int = 1) -> dict:
+    """
+    Analyze portfolio performance, returns, and risk metrics.
+    
+    Args:
+        user_id (int): User ID to analyze portfolio for
+        
+    Returns:
+        dict: Portfolio analysis with performance metrics
+    """
+    try:
+        portfolio_data = get_user_portfolio(user_id)
+        
+        if "error" in portfolio_data:
+            return portfolio_data
+        
+        holdings = portfolio_data.get("holdings", [])
+        total_value = sum(float(h.get("current_value", 0)) for h in holdings)
+        total_cost = sum(float(h.get("total_cost", 0)) for h in holdings)
+        
+        if total_cost > 0:
+            total_return = ((total_value - total_cost) / total_cost) * 100
+        else:
+            total_return = 0.0
+        
+        # Risk analysis (simplified)
+        num_positions = len(holdings)
+        largest_position = max(holdings, key=lambda x: float(x.get("current_value", 0))) if holdings else {}
+        concentration_risk = (float(largest_position.get("current_value", 0)) / total_value * 100) if total_value > 0 else 0
+        
+        return {
+            "user_id": user_id,
+            "total_portfolio_value": round(total_value, 2),
+            "total_cost_basis": round(total_cost, 2),
+            "total_return_pct": round(total_return, 2),
+            "total_return_dollar": round(total_value - total_cost, 2),
+            "number_of_positions": num_positions,
+            "largest_position": {
+                "symbol": largest_position.get("symbol", "N/A"),
+                "value": round(float(largest_position.get("current_value", 0)), 2),
+                "percentage": round(concentration_risk, 2)
+            },
+            "diversification_score": max(0, min(100, 100 - concentration_risk)),
+            "risk_level": "high" if concentration_risk > 30 else "medium" if concentration_risk > 15 else "low",
+            "analysis_date": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {"error": f"Portfolio analysis failed: {str(e)}"}
+
+@mcp.tool(description="Optimize portfolio allocation based on risk level")
+def optimize_portfolio(user_id: int = 1, risk_level: str = "moderate") -> dict:
+    """
+    Provide portfolio optimization suggestions based on risk tolerance.
+    
+    Args:
+        user_id (int): User ID for portfolio optimization
+        risk_level (str): Risk level - conservative, moderate, or aggressive
+        
+    Returns:
+        dict: Portfolio optimization recommendations
+    """
+    try:
+        current_portfolio = analyze_portfolio(user_id)
+        
+        if "error" in current_portfolio:
+            return current_portfolio
+        
+        # Risk level mappings
+        risk_profiles = {
+            "conservative": {
+                "max_single_position": 15,
+                "min_positions": 10,
+                "sector_diversification": "high",
+                "cash_allocation": 20
+            },
+            "moderate": {
+                "max_single_position": 25,
+                "min_positions": 8,
+                "sector_diversification": "medium",
+                "cash_allocation": 10
+            },
+            "aggressive": {
+                "max_single_position": 35,
+                "min_positions": 5,
+                "sector_diversification": "low",
+                "cash_allocation": 5
+            }
+        }
+        
+        profile = risk_profiles.get(risk_level, risk_profiles["moderate"])
+        current_concentration = current_portfolio.get("largest_position", {}).get("percentage", 0)
+        current_positions = current_portfolio.get("number_of_positions", 0)
+        
+        recommendations = []
+        
+        # Concentration risk check
+        if current_concentration > profile["max_single_position"]:
+            recommendations.append({
+                "type": "reduce_concentration",
+                "message": f"Consider reducing your largest position ({current_concentration:.1f}%) to below {profile['max_single_position']}%",
+                "priority": "high"
+            })
+        
+        # Position count check
+        if current_positions < profile["min_positions"]:
+            recommendations.append({
+                "type": "increase_diversification",
+                "message": f"Consider adding {profile['min_positions'] - current_positions} more positions for better diversification",
+                "priority": "medium"
+            })
+        
+        # General recommendations based on risk level
+        if risk_level == "conservative":
+            recommendations.append({
+                "type": "asset_allocation",
+                "message": "Consider adding bonds or dividend-paying stocks for stability",
+                "priority": "low"
+            })
+        elif risk_level == "aggressive":
+            recommendations.append({
+                "type": "growth_focus",
+                "message": "Consider focusing on growth stocks and emerging sectors",
+                "priority": "low"
+            })
+        
+        return {
+            "user_id": user_id,
+            "risk_level": risk_level,
+            "current_portfolio_summary": current_portfolio,
+            "optimization_score": max(0, min(100, 100 - abs(current_concentration - profile["max_single_position"]))),
+            "recommendations": recommendations,
+            "target_allocation": profile,
+            "optimization_date": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {"error": f"Portfolio optimization failed: {str(e)}"}
+
+@mcp.tool(description="Analyze portfolio risk and return characteristics")
+def analyze_portfolio_risk(user_id: int = 1) -> dict:
+    """
+    Detailed risk analysis of portfolio including volatility and risk metrics.
+    
+    Args:
+        user_id (int): User ID for risk analysis
+        
+    Returns:
+        dict: Detailed risk analysis
+    """
+    try:
+        portfolio_analysis = analyze_portfolio(user_id)
+        
+        if "error" in portfolio_analysis:
+            return portfolio_analysis
+        
+        # Get portfolio holdings for detailed analysis
+        portfolio_data = get_user_portfolio(user_id)
+        holdings = portfolio_data.get("holdings", [])
+        
+        # Risk metrics calculation (simplified)
+        total_return = portfolio_analysis.get("total_return_pct", 0)
+        diversification_score = portfolio_analysis.get("diversification_score", 0)
+        concentration_risk = portfolio_analysis.get("largest_position", {}).get("percentage", 0)
+        
+        # Risk assessment
+        risk_score = 0
+        risk_factors = []
+        
+        if concentration_risk > 30:
+            risk_score += 30
+            risk_factors.append("High concentration risk")
+        elif concentration_risk > 15:
+            risk_score += 15
+            risk_factors.append("Moderate concentration risk")
+        
+        if len(holdings) < 5:
+            risk_score += 25
+            risk_factors.append("Low diversification")
+        elif len(holdings) < 10:
+            risk_score += 10
+            risk_factors.append("Moderate diversification")
+        
+        # Volatility estimation (simplified)
+        estimated_volatility = min(50, max(10, abs(total_return) * 0.5 + concentration_risk * 0.3))
+        
+        risk_level = "low" if risk_score < 20 else "medium" if risk_score < 40 else "high"
+        
+        return {
+            "user_id": user_id,
+            "risk_analysis": {
+                "overall_risk_score": risk_score,
+                "risk_level": risk_level,
+                "estimated_volatility": round(estimated_volatility, 2),
+                "concentration_risk": round(concentration_risk, 2),
+                "diversification_score": round(diversification_score, 2)
+            },
+            "risk_factors": risk_factors,
+            "risk_return_profile": {
+                "expected_return": round(total_return * 0.8, 2),  # Conservative estimate
+                "risk_adjusted_return": round(total_return / max(1, risk_score / 10), 2),
+                "sharpe_ratio_estimate": round(total_return / max(1, estimated_volatility), 3)
+            },
+            "recommendations": [
+                "Consider rebalancing if risk score > 40" if risk_score > 40 else "Portfolio risk within acceptable range",
+                "Monitor concentration risk regularly" if concentration_risk > 20 else "Good diversification maintained"
+            ],
+            "analysis_date": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {"error": f"Risk analysis failed: {str(e)}"}

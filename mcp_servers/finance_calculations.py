@@ -202,3 +202,60 @@ def calculate_volatility(symbol: str, start_date: str, end_date: str) -> dict:
         return {"error": f"Database error: {str(e)}"}
     except Exception as e:
         return {"error": f"Volatility calculation failed: {str(e)}"}
+
+# Alias function for API compatibility
+@mcp.tool(description="Calculate stock return - wrapper for calculate_percentage_return")
+def calculate_stock_return(symbol: str, start_date: str, end_date: str) -> dict:
+    """Wrapper function for API compatibility"""
+    return calculate_percentage_return(symbol, start_date, end_date)
+
+@mcp.tool(description="Calculate compound interest return on an investment")
+def calculate_compound_return(principal: float, rate: float, time: float, compound_frequency: int = 12) -> dict:
+    """
+    Calculate compound interest return on an investment.
+    
+    Args:
+        principal (float): Initial investment amount
+        rate (float): Annual interest rate (as decimal, e.g., 0.08 for 8%)
+        time (float): Time period in years
+        compound_frequency (int): Number of times interest is compounded per year
+        
+    Returns:
+        dict: Compound return calculation results
+    """
+    try:
+        if principal <= 0:
+            return {"error": "Principal must be greater than 0"}
+        if rate < 0:
+            return {"error": "Interest rate cannot be negative"}
+        if time <= 0:
+            return {"error": "Time period must be greater than 0"}
+        if compound_frequency <= 0:
+            return {"error": "Compound frequency must be greater than 0"}
+        
+        # Compound interest formula: A = P(1 + r/n)^(nt)
+        final_amount = principal * ((1 + rate / compound_frequency) ** (compound_frequency * time))
+        total_return = final_amount - principal
+        return_percentage = (total_return / principal) * 100
+        
+        return {
+            "success": True,
+            "calculation": "compound_return",
+            "inputs": {
+                "principal": principal,
+                "annual_rate": rate,
+                "annual_rate_percentage": rate * 100,
+                "time_years": time,
+                "compound_frequency": compound_frequency
+            },
+            "results": {
+                "final_amount": round(final_amount, 2),
+                "total_return": round(total_return, 2),
+                "return_percentage": round(return_percentage, 2),
+                "effective_annual_rate": round(((1 + rate / compound_frequency) ** compound_frequency - 1) * 100, 3)
+            },
+            "calculation_date": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {"error": f"Compound return calculation failed: {str(e)}"}
