@@ -3,157 +3,194 @@ from mcp.server.fastmcp import FastMCP
 import psycopg2
 from psycopg2 import Error
 from dotenv import load_dotenv
-from datetime import datetime
-from decimal import Decimal
+import numpy as np
 
 load_dotenv()
 
 DB_URI = os.getenv("FINANCE_DB_URI", None)
-USER_DB_URI = os.getenv("USER_DB_URI", None)
 
-if not DB_URI or not USER_DB_URI:
-    raise ValueError("Database URIs not found in environment variables.")
+if not DB_URI:
+    raise ValueError("Database URI not found in environment variables.")
 
-mcp = FastMCP(name="Finance MCP Server - Portfolio (Simplified)")
+mcp = FastMCP(name="Finance MCP Server - Portfolio Optimization")
 
-def _get_latest_close_price(symbol: str) -> Decimal:
-    """Fetches the most recent close price for a stock symbol."""
+def _get_historical_returns(symbol: str, days: int = 252):
+    """Get historical returns for a symbol"""
     try:
         with psycopg2.connect(DB_URI) as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT close_price FROM public.\"STOCK_PRICES\" WHERE symbol = %s ORDER BY date DESC LIMIT 1",
-                    (symbol.upper(),)
-                )
-                result = cur.fetchone()
-                if result:
-                    return Decimal(str(result[0]))
-                else:
-                    return Decimal('0.0')
+                query = """
+                SELECT close_price
+                FROM public.stock_price
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT %s
+                """
+                cur.execute(query, (symbol.upper(), days + 1))
+                results = cur.fetchall()
+                
+                if len(results) < 2:
+                    return []
+                
+                prices = [float(row[0]) for row in reversed(results)]
+                returns = []
+                
+                for i in range(1, len(prices)):
+                    ret = (prices[i] - prices[i-1]) / prices[i-1]
+                    returns.append(ret)
+                
+                return returns
+                
     except Error as e:
-        print(f"Error fetching latest price for {symbol}: {e}")
-        return Decimal('0.0')
+        print(f"Database error getting returns for {symbol}: {e}")
+        return []
 
-
-@mcp.tool(description="Adds a stock holding to a user's portfolio.")
-def add_stock_holding(user_id: int, symbol: str, quantity: int, purchase_price: float, purchase_date: str) -> dict:
+@mcp.tool(description="Simple portfolio optimization using equal weighting")
+def optimize_portfolio(symbols: list, target_return: float = 0.1) -> dict:
     """
-    Adds a specified quantity of a stock to a user's portfolio at a given purchase price and date.
-
+    Simple portfolio optimization - equal weight allocation
+    
     Args:
-        user_id (int): The ID of the user.
-        symbol (str): The stock symbol (e.g., 'AAPL').
-        quantity (int): The number of shares purchased.
-        purchase_price (float): The price per share at the time of purchase.
-        purchase_date (str): The date of purchase in YYYY-MM-DD format.
-
-    Returns:
-        dict: A dictionary indicating success or failure.
-    """
-    try:
-        # Validate user_id exists (optional but good practice)
-        with psycopg2.connect(USER_DB_URI) as conn_user:
-            with conn_user.cursor() as cur_user:
-                cur_user.execute("SELECT id FROM public.\"USERS\" WHERE id = %s", (user_id,))
-                if not cur_user.fetchone():
-                    return {"error": f"User with ID {user_id} not found."}
-
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                # Check if holding already exists for this user and symbol
-                cur.execute(
-                    "SELECT id, quantity, purchase_price FROM public.\"USER_STOCK_HOLDINGS\" WHERE user_id = %s AND symbol = %s",
-                    (user_id, symbol.upper())
-                )
-                existing_holding = cur.fetchone()
-
-                if existing_holding:
-                    # Update existing holding (e.g., average price, sum quantity)
-                    existing_id, old_quantity, old_purchase_price_dec = existing_holding
-                    old_purchase_price = float(old_purchase_price_dec)
-
-                    new_total_cost = (old_quantity * old_purchase_price) + (quantity * purchase_price)
-                    new_total_quantity = old_quantity + quantity
-                    new_average_price = new_total_cost / new_total_quantity if new_total_quantity > 0 else 0
-
-                    cur.execute(
-                        "UPDATE public.\"USER_STOCK_HOLDINGS\" SET quantity = %s, purchase_price = %s, updatedat = NOW() WHERE id = %s",
-                        (new_total_quantity, Decimal(str(new_average_price)), existing_id)
-                    )
-                    conn.commit()
-                    return {"success": True, "message": f"Updated holding for {symbol} for user {user_id}. New quantity: {new_total_quantity}, Average price: {new_average_price:.2f}"}
-                else:
-                    # Insert new holding
-                    cur.execute(
-                        "INSERT INTO public.\"USER_STOCK_HOLDINGS\" (user_id, symbol, quantity, purchase_price, purchase_date, createdat, updatedat) VALUES (%s, %s, %s, %s, %s, NOW(), NOW())",
-                        (user_id, symbol.upper(), quantity, Decimal(str(purchase_price)), purchase_date)
-                    )
-                    conn.commit()
-                    return {"success": True, "message": f"Added {quantity} shares of {symbol} for user {user_id}."}
-    except Error as e:
-        return {"error": f"Database error: {str(e)}"}
-    except Exception as e:
-        return {"error": f"Failed to add stock holding: {str(e)}"}
-
-@mcp.tool(description="Retrieves all stock holdings for a given user.")
-def get_user_portfolio(user_id: int) -> dict:
-    """
-    Retrieves all stock holdings for a specific user, including current market value.
-
-    Args:
-        user_id (int): The ID of the user.
-
-    Returns:
-        dict: A dictionary containing the user's portfolio details.
-              Each holding includes symbol, quantity, purchase price, current price, and current value.
-              Also includes total portfolio value.
-    """
-    try:
-        holdings = []
-        total_portfolio_value = Decimal('0.0')
-
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT symbol, quantity, purchase_price, purchase_date FROM public.\"USER_STOCK_HOLDINGS\" WHERE user_id = %s",
-                    (user_id,)
-                )
-                rows = cur.fetchall()
-
-                for row in rows:
-                    symbol, quantity, purchase_price_dec, purchase_date = row
-                    purchase_price = float(purchase_price_dec)
-                    latest_price = _get_latest_close_price(symbol)
-                    current_value = latest_price * quantity
-                    total_portfolio_value += current_value
-
-                    holdings.append({
-                        "symbol": symbol,
-                        "quantity": quantity,
-                        "purchase_price": purchase_price,
-                        "purchase_date": purchase_date.isoformat() if isinstance(purchase_date, datetime) else str(purchase_date),
-                        "latest_price": float(latest_price),
-                        "current_value": float(current_value),
-                        "gain_loss_percentage": ((latest_price - Decimal(str(purchase_price))) / Decimal(str(purchase_price))) * Decimal('100.0') if purchase_price != 0 else 0
-                    })
+        symbols (list): List of stock symbols
+        target_return (float): Target annual return (0.1 = 10%)
         
-        if not holdings:
-            return {"user_id": user_id, "holdings": [], "total_portfolio_value": 0.0, "message": "No holdings found for this user."}
-
+    Returns:
+        dict: Optimized portfolio weights and expected metrics
+    """
+    try:
+        if not symbols or len(symbols) == 0:
+            return {
+                "success": False,
+                "error": "No symbols provided"
+            }
+        
+        # Get returns for all symbols
+        all_returns = {}
+        valid_symbols = []
+        
+        for symbol in symbols:
+            returns = _get_historical_returns(symbol, 252)  # 1 year of data
+            if len(returns) > 50:  # Need at least 50 days of data
+                all_returns[symbol] = returns
+                valid_symbols.append(symbol)
+        
+        if len(valid_symbols) == 0:
+            return {
+                "success": False,
+                "error": "No symbols have sufficient historical data"
+            }
+        
+        # Simple equal weighting
+        equal_weight = 1.0 / len(valid_symbols)
+        optimal_weights = {symbol: equal_weight for symbol in valid_symbols}
+        
+        # Calculate expected return and risk
+        portfolio_returns = []
+        min_length = min(len(returns) for returns in all_returns.values())
+        
+        for i in range(min_length):
+            daily_portfolio_return = sum(
+                all_returns[symbol][i] * optimal_weights[symbol] 
+                for symbol in valid_symbols
+            )
+            portfolio_returns.append(daily_portfolio_return)
+        
+        # Calculate metrics
+        expected_return = np.mean(portfolio_returns) * 252  # Annualized
+        volatility = np.std(portfolio_returns) * np.sqrt(252)  # Annualized
+        sharpe_ratio = expected_return / volatility if volatility > 0 else 0
+        
         return {
-            "user_id": user_id,
-            "holdings": holdings,
-            "total_portfolio_value": float(total_portfolio_value)
+            "success": True,
+            "valid_symbols": valid_symbols,
+            "optimal_weights": optimal_weights,
+            "expected_return": round(expected_return * 100, 2),  # As percentage
+            "portfolio_volatility": round(volatility * 100, 2),  # As percentage
+            "sharpe_ratio": round(sharpe_ratio, 3),
+            "target_return": target_return * 100,
+            "optimization_method": "Equal Weight Allocation"
         }
-    except Error as e:
-        return {"error": f"Database error: {str(e)}"}
+        
     except Exception as e:
-        return {"error": f"Failed to retrieve portfolio: {str(e)}"}
+        return {
+            "success": False,
+            "error": f"Portfolio optimization failed: {str(e)}"
+        }
 
-
-
-# Simplified portfolio server with 2 essential tools: add and get
-# Removed: remove_stock_holding, analyze_portfolio, optimize_portfolio, analyze_portfolio_risk functions
-
-if __name__ == "__main__":
-    mcp.run()
+@mcp.tool(description="Calculate portfolio risk metrics")
+def calculate_portfolio_risk(symbols: list, weights: list) -> dict:
+    """
+    Calculate portfolio risk metrics
+    
+    Args:
+        symbols (list): List of stock symbols
+        weights (list): List of weights for each symbol
+        
+    Returns:
+        dict: Portfolio risk metrics
+    """
+    try:
+        if len(symbols) != len(weights):
+            return {
+                "success": False,
+                "error": "Number of symbols must match number of weights"
+            }
+        
+        if abs(sum(weights) - 1.0) > 0.01:
+            return {
+                "success": False,
+                "error": f"Weights must sum to 1.0, got {sum(weights):.3f}"
+            }
+        
+        # Get returns for all symbols
+        all_returns = {}
+        valid_data = []
+        
+        for i, symbol in enumerate(symbols):
+            returns = _get_historical_returns(symbol, 252)
+            if len(returns) > 50:
+                all_returns[symbol] = returns
+                valid_data.append((symbol, weights[i]))
+        
+        if len(valid_data) == 0:
+            return {
+                "success": False,
+                "error": "No symbols have sufficient historical data"
+            }
+        
+        # Calculate portfolio returns
+        portfolio_returns = []
+        min_length = min(len(all_returns[symbol]) for symbol, _ in valid_data)
+        
+        for i in range(min_length):
+            daily_return = sum(
+                all_returns[symbol][i] * weight 
+                for symbol, weight in valid_data
+            )
+            portfolio_returns.append(daily_return)
+        
+        # Calculate risk metrics
+        portfolio_vol = np.std(portfolio_returns) * np.sqrt(252)  # Annualized
+        var_95 = np.percentile(portfolio_returns, 5) * np.sqrt(252)  # 95% VaR
+        max_drawdown = 0
+        
+        # Calculate maximum drawdown
+        cumulative_returns = np.cumprod(1 + np.array(portfolio_returns))
+        running_max = np.maximum.accumulate(cumulative_returns)
+        drawdowns = (cumulative_returns - running_max) / running_max
+        max_drawdown = np.min(drawdowns)
+        
+        return {
+            "success": True,
+            "portfolio_volatility": round(portfolio_vol * 100, 2),
+            "value_at_risk_95": round(var_95 * 100, 2),
+            "max_drawdown": round(max_drawdown * 100, 2),
+            "valid_symbols": [symbol for symbol, _ in valid_data],
+            "analysis_period_days": min_length
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Risk calculation failed: {str(e)}"
+        }
