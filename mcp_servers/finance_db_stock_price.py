@@ -143,53 +143,5 @@ def get_historical_prices(
             conn.close()
 
 
-@mcp.tool(description="Get stock price for a specific date")
-def get_price_by_date(symbol: str, date: str):
-    """
-    Get stock price for a specific date
-
-    Args:
-        symbol: Stock symbol
-        date: Date (YYYY-MM-DD)
-
-    Returns:
-        Dictionary with stock price information for the specified date
-    """
-    try:
-        conn = psycopg2.connect(DB_URI)
-        cursor = conn.cursor()
-
-        query = """
-        SELECT price_id, symbol, date, open_price, high_price, low_price, 
-               close_price, adjusted_close, volume, dividend_amount, split_coefficient
-        FROM public.stock_price
-        WHERE symbol = %s AND date = %s
-        """
-
-        cursor.execute(query, (symbol.upper(), date))
-        result = cursor.fetchone()
-
-        if result:
-            return {
-                "symbol": result[1],
-                "date": result[2].isoformat()
-                if isinstance(result[2], datetime)
-                else result[2],
-                "open_price": float(result[3]),
-                "high_price": float(result[4]),
-                "low_price": float(result[5]),
-                "close_price": float(result[6]),
-                "adjusted_close": float(result[7]),
-                "volume": result[8],
-                "dividend_amount": float(result[9]),
-                "split_coefficient": float(result[10]),
-            }
-        else:
-            return {"error": f"No price data found for symbol {symbol} on {date}"}
-
-    except Error as e:
-        return {"error": f"Database error: {str(e)}"}
-    finally:
-        if conn:
             cursor.close()
             conn.close()

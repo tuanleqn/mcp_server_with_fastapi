@@ -1261,61 +1261,6 @@ def get_market_overview() -> dict:
     return market_overview
 
 
-@mcp.tool(description="Get available market symbols and categories for chart creation.")
-def get_available_markets() -> dict:
-    """
-    Returns all available market symbols organized by category.
-    Useful for frontend dropdown menus and market selection.
-    
-    Returns:
-        dict: Available markets organized by category
-    """
-    return {
-        "success": True,
-        "categories": {
-            "Stock Indices": {
-                "nasdaq": "NASDAQ Composite",
-                "sp500": "S&P 500",
-                "dow": "Dow Jones Industrial Average", 
-                "russell2000": "Russell 2000"
-            },
-            "Commodities": {
-                "gold": "Gold Futures",
-                "silver": "Silver Futures",
-                "oil": "Crude Oil Futures",
-                "natural_gas": "Natural Gas Futures"
-            },
-            "Cryptocurrencies": {
-                "bitcoin": "Bitcoin (BTC)",
-                "ethereum": "Ethereum (ETH)",
-                "litecoin": "Litecoin (LTC)"
-            },
-            "Forex": {
-                "eurusd": "EUR/USD",
-                "gbpusd": "GBP/USD", 
-                "usdjpy": "USD/JPY"
-            }
-        },
-        "supported_intervals": [
-            {"value": "1min", "label": "1 Minute"},
-            {"value": "5min", "label": "5 Minutes"},
-            {"value": "15min", "label": "15 Minutes"},
-            {"value": "30min", "label": "30 Minutes"},
-            {"value": "1hour", "label": "1 Hour"},
-            {"value": "1day", "label": "1 Day"}
-        ],
-        "supported_periods": [
-            {"value": "1day", "label": "1 Day"},
-            {"value": "5days", "label": "5 Days"},
-            {"value": "1month", "label": "1 Month"},
-            {"value": "3months", "label": "3 Months"},
-            {"value": "6months", "label": "6 Months"},
-            {"value": "1year", "label": "1 Year"},
-            {"value": "2years", "label": "2 Years"},
-            {"value": "5years", "label": "5 Years"}
-        ]
-    }
-
 @mcp.tool(description="Get current market status and trading hours")
 def get_market_status() -> dict:
     """
