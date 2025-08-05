@@ -13,13 +13,8 @@ from fastapi import APIRouter
 from datetime import datetime
 
 # Import modular routers
-try:
-    from .core_endpoints import router as core_router
-    from .advanced_endpoints import router as advanced_router
-except ImportError:
-    # Fallback to absolute imports if relative imports fail
-    from api.core_endpoints import router as core_router
-    from api.advanced_endpoints import router as advanced_router
+from .core_endpoints import router as core_router
+from .advanced_endpoints import router as advanced_router
 
 # Create main router
 router = APIRouter()

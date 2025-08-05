@@ -1,196 +1,169 @@
+"""
+Finance Portfolio Server
+Simplified MCP server for portfolio analysis using helper functions
+"""
+
 import os
 from mcp.server.fastmcp import FastMCP
-import psycopg2
-from psycopg2 import Error
 from dotenv import load_dotenv
+from .finance_helpers import get_historical_prices_helper
 import numpy as np
 
 load_dotenv()
 
-DB_URI = os.getenv("FINANCE_DB_URI", None)
+mcp = FastMCP(name="Finance Portfolio Server")
 
-if not DB_URI:
-    raise ValueError("Database URI not found in environment variables.")
-
-mcp = FastMCP(name="Finance MCP Server - Portfolio Optimization")
-
-def _get_historical_returns(symbol: str, days: int = 252):
-    """Get historical returns for a symbol"""
-    try:
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                query = """
-                SELECT close_price
-                FROM public.stock_price
-                WHERE symbol = %s
-                ORDER BY date DESC
-                LIMIT %s
-                """
-                cur.execute(query, (symbol.upper(), days + 1))
-                results = cur.fetchall()
-                
-                if len(results) < 2:
-                    return []
-                
-                prices = [float(row[0]) for row in reversed(results)]
-                returns = []
-                
-                for i in range(1, len(prices)):
-                    ret = (prices[i] - prices[i-1]) / prices[i-1]
-                    returns.append(ret)
-                
-                return returns
-                
-    except Error as e:
-        print(f"Database error getting returns for {symbol}: {e}")
-        return []
-
-@mcp.tool(description="Simple portfolio optimization using equal weighting")
-def optimize_portfolio(symbols: list, target_return: float = 0.1) -> dict:
+@mcp.tool(description="Calculate portfolio return and risk metrics")
+def analyze_portfolio(symbols: list, weights: list = None) -> dict:
     """
-    Simple portfolio optimization - equal weight allocation
+    Analyze portfolio performance with given symbols and weights.
     
     Args:
-        symbols (list): List of stock symbols
-        target_return (float): Target annual return (0.1 = 10%)
-        
+        symbols: List of stock symbols
+        weights: List of weights (if None, equal weighting is used)
+    
     Returns:
-        dict: Optimized portfolio weights and expected metrics
+        Dictionary containing portfolio analysis
     """
-    try:
-        if not symbols or len(symbols) == 0:
-            return {
-                "success": False,
-                "error": "No symbols provided"
-            }
-        
-        # Get returns for all symbols
-        all_returns = {}
-        valid_symbols = []
-        
-        for symbol in symbols:
-            returns = _get_historical_returns(symbol, 252)  # 1 year of data
-            if len(returns) > 50:  # Need at least 50 days of data
-                all_returns[symbol] = returns
-                valid_symbols.append(symbol)
-        
-        if len(valid_symbols) == 0:
-            return {
-                "success": False,
-                "error": "No symbols have sufficient historical data"
-            }
-        
-        # Simple equal weighting
-        equal_weight = 1.0 / len(valid_symbols)
-        optimal_weights = {symbol: equal_weight for symbol in valid_symbols}
-        
-        # Calculate expected return and risk
-        portfolio_returns = []
-        min_length = min(len(returns) for returns in all_returns.values())
-        
-        for i in range(min_length):
-            daily_portfolio_return = sum(
-                all_returns[symbol][i] * optimal_weights[symbol] 
-                for symbol in valid_symbols
-            )
-            portfolio_returns.append(daily_portfolio_return)
-        
-        # Calculate metrics
-        expected_return = np.mean(portfolio_returns) * 252  # Annualized
-        volatility = np.std(portfolio_returns) * np.sqrt(252)  # Annualized
-        sharpe_ratio = expected_return / volatility if volatility > 0 else 0
-        
-        return {
-            "success": True,
-            "valid_symbols": valid_symbols,
-            "optimal_weights": optimal_weights,
-            "expected_return": round(expected_return * 100, 2),  # As percentage
-            "portfolio_volatility": round(volatility * 100, 2),  # As percentage
-            "sharpe_ratio": round(sharpe_ratio, 3),
-            "target_return": target_return * 100,
-            "optimization_method": "Equal Weight Allocation"
-        }
-        
-    except Exception as e:
+    if not symbols:
         return {
             "success": False,
-            "error": f"Portfolio optimization failed: {str(e)}"
+            "error": "No symbols provided"
         }
+    
+    # Use equal weights if not provided
+    if weights is None:
+        weights = [1.0 / len(symbols)] * len(symbols)
+    
+    if len(weights) != len(symbols):
+        return {
+            "success": False,
+            "error": "Number of weights must match number of symbols"
+        }
+    
+    # Normalize weights to sum to 1
+    total_weight = sum(weights)
+    weights = [w / total_weight for w in weights]
+    
+    portfolio_data = []
+    valid_symbols = []
+    valid_weights = []
+    
+    for i, symbol in enumerate(symbols):
+        df = get_historical_prices_helper(symbol, 252)  # 1 year
+        if not df.empty and len(df) > 50:
+            returns = df['close_price'].pct_change().dropna()
+            portfolio_data.append({
+                'symbol': symbol,
+                'returns': returns,
+                'mean_return': returns.mean(),
+                'volatility': returns.std(),
+                'weight': weights[i]
+            })
+            valid_symbols.append(symbol)
+            valid_weights.append(weights[i])
+    
+    if not portfolio_data:
+        return {
+            "success": False,
+            "error": "No symbols have sufficient historical data"
+        }
+    
+    # Calculate portfolio metrics
+    portfolio_return = sum(
+        data['mean_return'] * data['weight'] 
+        for data in portfolio_data
+    ) * 252  # Annualized
+    
+    # Simple portfolio volatility (assumes no correlation)
+    portfolio_volatility = np.sqrt(sum(
+        (data['weight'] * data['volatility']) ** 2 
+        for data in portfolio_data
+    )) * np.sqrt(252)  # Annualized
+    
+    # Sharpe ratio (assuming 0% risk-free rate)
+    sharpe_ratio = portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0
+    
+    return {
+        "success": True,
+        # Add top-level fields that showcase expects
+        "portfolio_return": round(portfolio_return * 100, 2),  # Convert to percentage
+        "portfolio_volatility": round(portfolio_volatility * 100, 2),  # Convert to percentage  
+        "sharpe_ratio": round(sharpe_ratio, 4),
+        "portfolio_composition": [
+            {
+                "symbol": data['symbol'],
+                "weight": round(data['weight'], 4),
+                "weight_percent": round(data['weight'] * 100, 2),
+                "annual_return": round(data['mean_return'] * 252, 4),
+                "annual_volatility": round(data['volatility'] * np.sqrt(252), 4)
+            }
+            for data in portfolio_data
+        ],
+        "portfolio_metrics": {
+            "expected_annual_return": round(portfolio_return, 4),
+            "annual_volatility": round(portfolio_volatility, 4),
+            "sharpe_ratio": round(sharpe_ratio, 4),
+            "number_of_holdings": len(valid_symbols)
+        },
+        "risk_analysis": {
+            "risk_level": "high" if portfolio_volatility > 0.25 else "medium" if portfolio_volatility > 0.15 else "low",
+            "diversification_score": min(len(valid_symbols) / 10, 1.0)  # Simple diversification score
+        }
+    }
 
-@mcp.tool(description="Calculate portfolio risk metrics")
-def calculate_portfolio_risk(symbols: list, weights: list) -> dict:
+@mcp.tool(description="Optimize portfolio weights for equal risk contribution")
+def optimize_equal_risk_portfolio(symbols: list) -> dict:
     """
-    Calculate portfolio risk metrics
+    Create an equal risk contribution portfolio.
     
     Args:
-        symbols (list): List of stock symbols
-        weights (list): List of weights for each symbol
-        
+        symbols: List of stock symbols
+    
     Returns:
-        dict: Portfolio risk metrics
+        Dictionary containing optimized portfolio weights
     """
-    try:
-        if len(symbols) != len(weights):
-            return {
-                "success": False,
-                "error": "Number of symbols must match number of weights"
-            }
-        
-        if abs(sum(weights) - 1.0) > 0.01:
-            return {
-                "success": False,
-                "error": f"Weights must sum to 1.0, got {sum(weights):.3f}"
-            }
-        
-        # Get returns for all symbols
-        all_returns = {}
-        valid_data = []
-        
-        for i, symbol in enumerate(symbols):
-            returns = _get_historical_returns(symbol, 252)
-            if len(returns) > 50:
-                all_returns[symbol] = returns
-                valid_data.append((symbol, weights[i]))
-        
-        if len(valid_data) == 0:
-            return {
-                "success": False,
-                "error": "No symbols have sufficient historical data"
-            }
-        
-        # Calculate portfolio returns
-        portfolio_returns = []
-        min_length = min(len(all_returns[symbol]) for symbol, _ in valid_data)
-        
-        for i in range(min_length):
-            daily_return = sum(
-                all_returns[symbol][i] * weight 
-                for symbol, weight in valid_data
-            )
-            portfolio_returns.append(daily_return)
-        
-        # Calculate risk metrics
-        portfolio_vol = np.std(portfolio_returns) * np.sqrt(252)  # Annualized
-        var_95 = np.percentile(portfolio_returns, 5) * np.sqrt(252)  # 95% VaR
-        max_drawdown = 0
-        
-        # Calculate maximum drawdown
-        cumulative_returns = np.cumprod(1 + np.array(portfolio_returns))
-        running_max = np.maximum.accumulate(cumulative_returns)
-        drawdowns = (cumulative_returns - running_max) / running_max
-        max_drawdown = np.min(drawdowns)
-        
-        return {
-            "success": True,
-            "portfolio_volatility": round(portfolio_vol * 100, 2),
-            "value_at_risk_95": round(var_95 * 100, 2),
-            "max_drawdown": round(max_drawdown * 100, 2),
-            "valid_symbols": [symbol for symbol, _ in valid_data],
-            "analysis_period_days": min_length
-        }
-        
-    except Exception as e:
+    if not symbols:
         return {
             "success": False,
-            "error": f"Risk calculation failed: {str(e)}"
+            "error": "No symbols provided"
         }
+    
+    symbol_volatilities = []
+    valid_symbols = []
+    
+    for symbol in symbols:
+        df = get_historical_prices_helper(symbol, 252)  # 1 year
+        if not df.empty and len(df) > 50:
+            returns = df['close_price'].pct_change().dropna()
+            volatility = returns.std() * np.sqrt(252)  # Annualized
+            symbol_volatilities.append(volatility)
+            valid_symbols.append(symbol)
+    
+    if not symbol_volatilities:
+        return {
+            "success": False,
+            "error": "No symbols have sufficient historical data"
+        }
+    
+    # Inverse volatility weighting
+    inverse_vols = [1 / vol if vol > 0 else 0 for vol in symbol_volatilities]
+    total_inverse = sum(inverse_vols)
+    
+    if total_inverse == 0:
+        # Fallback to equal weighting
+        weights = [1.0 / len(valid_symbols)] * len(valid_symbols)
+    else:
+        weights = [inv_vol / total_inverse for inv_vol in inverse_vols]
+    
+    # Analyze the optimized portfolio
+    portfolio_analysis = analyze_portfolio(valid_symbols, weights)
+    
+    if portfolio_analysis.get("success"):
+        portfolio_analysis["optimization_method"] = "equal_risk_contribution"
+        portfolio_analysis["optimization_note"] = "Weights are inversely proportional to individual asset volatility"
+    
+    return portfolio_analysis
+
+if __name__ == "__main__":
+    mcp.run()
