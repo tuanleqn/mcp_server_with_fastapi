@@ -111,6 +111,10 @@ def get_financial_news(query: str = "financial markets", limit: int = 10) -> dic
         if response.status_code == 200:
             data = response.json()
             print(f"DEBUG: NewsAPI returned {len(data.get('articles', []))} articles")
+            print(f"DEBUG: Raw API response keys: {list(data.keys())}")
+            if data.get('articles'):
+                print(f"DEBUG: First article title: {data['articles'][0].get('title', 'NO_TITLE')}")
+                print(f"DEBUG: First article source: {data['articles'][0].get('source', {}).get('name', 'NO_SOURCE')}")
             
             articles = []
             
@@ -128,6 +132,11 @@ def get_financial_news(query: str = "financial markets", limit: int = 10) -> dic
                         "source": article.get("source", {}).get("name", "Unknown"),
                         "sentiment": sentiment
                     })
+            
+            print(f"DEBUG: Processed {len(articles)} articles")
+            if articles:
+                print(f"DEBUG: Final first article title: {articles[0]['title']}")
+                print(f"DEBUG: Final first article source: {articles[0]['source']}")
             
             return {
                 "success": True,

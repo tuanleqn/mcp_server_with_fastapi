@@ -353,115 +353,6 @@ def calculate_advanced_technical_analysis(symbol: str, period: int = 100) -> dic
     }
 
 
-@mcp.tool(description="Calculate portfolio risk metrics")
-def calculate_portfolio_risk_metrics(symbols: list, weights: list = None, period: int = 252) -> dict:
-    """
-    Calculate risk metrics for a portfolio of stocks.
-    
-    Args:
-        symbols: List of stock symbols
-        weights: List of weights (if None, equal weighting is used)
-        period: Number of days for analysis (default: 252 for 1 year)
-    
-    Returns:
-        Dictionary containing portfolio risk metrics
-    """
-    if not symbols:
-        return {
-            "success": False,
-            "error": "No symbols provided"
-        }
-    
-    # Use equal weights if not provided
-    if weights is None:
-        weights = [1.0 / len(symbols)] * len(symbols)
-    
-    if len(weights) != len(symbols):
-        return {
-            "success": False,
-            "error": "Number of weights must match number of symbols"
-        }
-    
-    # Normalize weights
-    total_weight = sum(weights)
-    weights = [w / total_weight for w in weights]
-    
-    # Get returns for all symbols
-    returns_data = {}
-    for symbol in symbols:
-        df = get_historical_prices_helper(symbol, period + 10)
-        if not df.empty and len(df) > 50:
-            returns = df['close_price'].pct_change().dropna()
-            returns_data[symbol] = returns
-    
-    if not returns_data:
-        return {
-            "success": False,
-            "error": "No valid data found for any symbols"
-        }
-    
-    # Calculate portfolio metrics
-    valid_symbols = list(returns_data.keys())
-    valid_weights = weights[:len(valid_symbols)]
-    
-    # Portfolio return
-    portfolio_returns = []
-    min_length = min(len(returns) for returns in returns_data.values())
-    
-    for i in range(min_length):
-        daily_return = sum(
-            returns_data[symbol].iloc[i] * weight 
-            for symbol, weight in zip(valid_symbols, valid_weights)
-        )
-        portfolio_returns.append(daily_return)
-    
-    portfolio_returns = pd.Series(portfolio_returns)
-    
-    # Risk metrics
-    portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
-    portfolio_return = portfolio_returns.mean() * 252
-    
-    # Value at Risk (95% confidence)
-    var_95 = np.percentile(portfolio_returns, 5) * np.sqrt(252)
-    
-    # Maximum Drawdown
-    cumulative_returns = (1 + portfolio_returns).cumprod()
-    rolling_max = cumulative_returns.expanding().max()
-    drawdown = (cumulative_returns - rolling_max) / rolling_max
-    max_drawdown = drawdown.min()
-    
-    # Sharpe Ratio (assuming 0% risk-free rate)
-    sharpe_ratio = portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0
-    
-    return {
-        "success": True,
-        "portfolio_return": round(portfolio_return * 100, 2),  # Convert to percentage
-        "portfolio_volatility": round(portfolio_volatility * 100, 2),  # Convert to percentage
-        "sharpe_ratio": round(sharpe_ratio, 4),
-        "value_at_risk_95": round(abs(var_95) * 100, 2),  # Convert to positive percentage
-        "max_drawdown": round(abs(max_drawdown) * 100, 2),  # Convert to positive percentage
-        "portfolio_composition": [
-            {"symbol": symbol, "weight": round(weight, 4), "weight_percent": round(weight * 100, 2)}
-            for symbol, weight in zip(valid_symbols, valid_weights)
-        ],
-        "risk_metrics": {
-            "annual_return": round(portfolio_return, 4),
-            "annual_volatility": round(portfolio_volatility, 4),
-            "sharpe_ratio": round(sharpe_ratio, 4),
-            "value_at_risk_95": round(var_95, 4),
-            "max_drawdown": round(max_drawdown, 4),
-            "risk_level": "high" if portfolio_volatility > 0.25 else "medium" if portfolio_volatility > 0.15 else "low"
-        },
-        "diversification": {
-            "number_of_assets": len(valid_symbols),
-            "effective_assets": round(1 / sum(w**2 for w in valid_weights), 2),
-            "concentration_risk": "high" if max(valid_weights) > 0.4 else "medium" if max(valid_weights) > 0.25 else "low"
-        },
-        "analysis_date": datetime.now().isoformat(),
-        "analysis_period_days": len(portfolio_returns)
-    }
-
-
 @mcp.tool(description="Calculate financial ratios from price data")
 def calculate_financial_ratios(symbol: str, period: int = 252) -> dict:
     """
@@ -482,48 +373,49 @@ def calculate_financial_ratios(symbol: str, period: int = 252) -> dict:
             "symbol": symbol.upper()
         }
     
+    # Ensure all data is float to avoid Decimal type issues
     prices = df['close_price'].astype(float)
     volumes = df['volume'].astype(float)
     highs = df['high_price'].astype(float)
     lows = df['low_price'].astype(float)
     
-    current_price = prices.iloc[-1]
+    current_price = float(prices.iloc[-1])
     
-    # Price ratios
-    price_52w_high = highs.max()
-    price_52w_low = lows.min()
+    # Price ratios - ensure float conversion
+    price_52w_high = float(highs.max())
+    price_52w_low = float(lows.min())
     
     # Returns
     returns = prices.pct_change().dropna()
-    annual_return = returns.mean() * 252
+    annual_return = float(returns.mean() * 252)
     
     # Risk-adjusted metrics
-    volatility = returns.std() * np.sqrt(252)
-    sharpe_ratio = annual_return / volatility if volatility > 0 else 0
+    volatility = float(returns.std() * np.sqrt(252))
+    sharpe_ratio = float(annual_return / volatility) if volatility > 0 else 0.0
     
-    # Momentum indicators
-    price_change_1m = ((prices.iloc[-1] / prices.iloc[-21]) - 1) if len(prices) > 21 else 0
-    price_change_3m = ((prices.iloc[-1] / prices.iloc[-63]) - 1) if len(prices) > 63 else 0
-    price_change_6m = ((prices.iloc[-1] / prices.iloc[-126]) - 1) if len(prices) > 126 else 0
+    # Momentum indicators - ensure float operations
+    price_change_1m = float((prices.iloc[-1] / prices.iloc[-21]) - 1) if len(prices) > 21 else 0.0
+    price_change_3m = float((prices.iloc[-1] / prices.iloc[-63]) - 1) if len(prices) > 63 else 0.0
+    price_change_6m = float((prices.iloc[-1] / prices.iloc[-126]) - 1) if len(prices) > 126 else 0.0
     
     # Volume metrics
-    avg_volume = volumes.mean()
-    volume_trend = "increasing" if volumes.tail(10).mean() > volumes.head(10).mean() else "decreasing"
+    avg_volume = float(volumes.mean())
+    volume_trend = "increasing" if float(volumes.tail(10).mean()) > float(volumes.head(10).mean()) else "decreasing"
     
     # Calculate max drawdown
     cumulative_returns = (1 + returns).cumprod()
     rolling_max = cumulative_returns.expanding().max()
     drawdown = (cumulative_returns - rolling_max) / rolling_max
-    max_drawdown = abs(drawdown.min())
+    max_drawdown = float(abs(drawdown.min()))
     
     # Calculate win rate
     positive_returns = returns[returns > 0]
-    win_rate = len(positive_returns) / len(returns) * 100 if len(returns) > 0 else 0
+    win_rate = float(len(positive_returns) / len(returns) * 100) if len(returns) > 0 else 0.0
     
     return {
         "success": True,
         "symbol": symbol.upper(),
-        "current_price": round(float(current_price), 2),
+        "current_price": round(current_price, 2),
         # Add top-level fields that showcase expects
         "annualized_return": round(annual_return * 100, 2),
         "max_drawdown": round(max_drawdown * 100, 2),

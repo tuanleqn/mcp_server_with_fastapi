@@ -255,10 +255,12 @@ def _calculate_advanced_indicators(df):
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
     
-    # MACD
-    ema_12 = df['close_price'].ewm(span=12).mean()
-    ema_26 = df['close_price'].ewm(span=26).mean()
-    df['MACD'] = ema_12 - ema_26
+    # EMA indicators - MUST be calculated first
+    df['EMA_12'] = df['close_price'].ewm(span=12).mean()
+    df['EMA_26'] = df['close_price'].ewm(span=26).mean()
+    
+    # MACD using the EMAs
+    df['MACD'] = df['EMA_12'] - df['EMA_26']
     df['MACD_signal'] = df['MACD'].ewm(span=9).mean()
     df['MACD_histogram'] = df['MACD'] - df['MACD_signal']
     
@@ -268,18 +270,24 @@ def _calculate_advanced_indicators(df):
     df['BB_upper'] = sma_20 + (std_20 * 2)
     df['BB_lower'] = sma_20 - (std_20 * 2)
     df['BB_width'] = df['BB_upper'] - df['BB_lower']
-    df['BB_position'] = (df['close_price'] - df['BB_lower']) / df['BB_width']
+    # Fix BB_position calculation to avoid division by zero
+    df['BB_position'] = np.where(df['BB_width'] > 0, 
+                                (df['close_price'] - df['BB_lower']) / df['BB_width'], 
+                                0.5)
     
-    # Additional momentum indicators
-    df['momentum_5'] = df['close_price'] / df['close_price'].shift(5)
-    df['momentum_10'] = df['close_price'] / df['close_price'].shift(10)
-    df['momentum_20'] = df['close_price'] / df['close_price'].shift(20)  # Add momentum_20
+    # Momentum indicators - ALL must be calculated
+    df['momentum_5'] = df['close_price'] / df['close_price'].shift(5) - 1
+    df['momentum_10'] = df['close_price'] / df['close_price'].shift(10) - 1
+    df['momentum_20'] = df['close_price'] / df['close_price'].shift(20) - 1
+    
+    # High-Low spread
+    df['hl_spread'] = (df['high_price'] - df['low_price']) / df['close_price']
+    
+    # Price position indicator
     df['price_position'] = (df['close_price'] - df['close_price'].rolling(20).min()) / (df['close_price'].rolling(20).max() - df['close_price'].rolling(20).min())
     
-    # Add missing features for consistency with training
-    df['EMA_12'] = df['close_price'].ewm(span=12).mean()
-    df['EMA_26'] = df['close_price'].ewm(span=26).mean()
-    df['hl_spread'] = (df['high_price'] - df['low_price']) / df['close_price']
+    # Fill any NaN values that might cause issues
+    df = df.fillna(method='ffill').fillna(method='bfill').fillna(0)
     
     return df
 

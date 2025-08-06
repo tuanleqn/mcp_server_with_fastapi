@@ -72,27 +72,58 @@ def get_company_info_helper(symbol: str) -> dict:
         }
 
 def search_companies_helper(query: str, limit: int = 10) -> dict:
-    """Search companies in database with intelligent ranking"""
+    """Search companies in database with intelligent ranking and flexible matching"""
     try:
         limit = min(limit, 50)
+        query_clean = query.strip()
         
         with psycopg2.connect(DB_URI) as conn:
             with conn.cursor() as cur:
-                search_query = f"%{query}%"
+                # Multiple search patterns for flexibility
+                search_patterns = [
+                    f"%{query_clean}%",  # Contains query
+                    f"{query_clean}%",   # Starts with query
+                    f"%{query_clean}",   # Ends with query
+                ]
+                
+                # Enhanced query with multiple search strategies
                 results_query = """
-                SELECT symbol, asset_type, name, description 
+                SELECT symbol, asset_type, name, description,
+                    CASE 
+                        WHEN UPPER(symbol) = UPPER(%s) THEN 1
+                        WHEN UPPER(symbol) LIKE UPPER(%s) THEN 2
+                        WHEN UPPER(name) LIKE UPPER(%s) THEN 3
+                        WHEN UPPER(symbol) LIKE UPPER(%s) THEN 4
+                        WHEN UPPER(name) LIKE UPPER(%s) THEN 5
+                        WHEN UPPER(description) LIKE UPPER(%s) THEN 6
+                        ELSE 7
+                    END as rank_score
                 FROM public.company 
-                WHERE UPPER(symbol) LIKE UPPER(%s) 
+                WHERE UPPER(symbol) = UPPER(%s)
+                   OR UPPER(symbol) LIKE UPPER(%s) 
                    OR UPPER(name) LIKE UPPER(%s)
-                ORDER BY 
-                    CASE WHEN UPPER(symbol) = UPPER(%s) THEN 1 ELSE 2 END,
-                    CASE WHEN UPPER(symbol) LIKE UPPER(%s) THEN 1 ELSE 2 END,
-                    symbol
+                   OR UPPER(description) LIKE UPPER(%s)
+                   OR UPPER(symbol) LIKE UPPER(%s)
+                   OR UPPER(name) LIKE UPPER(%s)
+                ORDER BY rank_score, symbol
                 LIMIT %s
                 """
                 
+                # Execute with all pattern variations
                 cur.execute(results_query, (
-                    search_query, search_query, query.upper(), f"{query.upper()}%", limit
+                    query_clean,           # Exact symbol match
+                    f"{query_clean}%",     # Symbol starts with
+                    f"%{query_clean}%",    # Name contains
+                    f"%{query_clean}%",    # Symbol contains  
+                    f"%{query_clean}%",    # Name contains
+                    f"%{query_clean}%",    # Description contains
+                    query_clean,           # WHERE: Exact symbol
+                    f"{query_clean}%",     # WHERE: Symbol starts with
+                    f"%{query_clean}%",    # WHERE: Name contains
+                    f"%{query_clean}%",    # WHERE: Description contains
+                    f"%{query_clean}%",    # WHERE: Symbol contains
+                    f"%{query_clean}%",    # WHERE: Name contains
+                    limit
                 ))
                 results = cur.fetchall()
                 
@@ -102,7 +133,8 @@ def search_companies_helper(query: str, limit: int = 10) -> dict:
                         "symbol": row[0],
                         "asset_type": row[1],
                         "name": row[2],
-                        "description": row[3]
+                        "description": row[3],
+                        "match_score": row[4]
                     })
                 
                 return {

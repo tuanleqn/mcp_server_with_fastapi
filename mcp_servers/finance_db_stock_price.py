@@ -61,11 +61,7 @@ def get_historical_stock_prices(symbol: str, days: int = 30) -> dict:
         "success": True,
         "symbol": symbol.upper(),
         "days_requested": days,
-        "data_points": len(historical_data),
         "records_returned": len(historical_data),
-        "latest_price": historical_data[0]["close_price"] if historical_data else 0,
-        "earliest_date": historical_data[-1]["date"] if historical_data else None,
-        "latest_date": historical_data[0]["date"] if historical_data else None,
         "date_range": {
             "earliest": historical_data[-1]["date"] if historical_data else None,
             "latest": historical_data[0]["date"] if historical_data else None
