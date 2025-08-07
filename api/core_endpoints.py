@@ -6,6 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from mcp_servers.finance_helpers import get_historical_prices_helper
+import pandas as pd
 
 router = APIRouter()
 
@@ -20,42 +21,134 @@ async def get_chart_data(
     period: str = Query("1day", description="Time period: 1day, 1week, 1month, 3month, 1year"),
     interval: str = Query("30m", description="Data interval: 5m, 15m, 30m, 1h, 1day")
 ):
-    """Get stock price chart data for frontend visualization"""
+    """
+    Get stock price chart data for frontend visualization
+    Returns time-series price data formatted for chart components
+    """
     try:
-        # Generate reliable mock data based on symbol
-        symbol_prices = {
-            "AAPL": 175.0, "MSFT": 420.0, "GOOGL": 140.0, "TSLA": 250.0,
-            "AMZN": 180.0, "NVDA": 800.0, "META": 520.0
+        # Map period to number of days for database query
+        period_map = {
+            "1day": 2,      # Get 2 days to have enough data for intraday
+            "1week": 7,
+            "1month": 30,
+            "3month": 90,
+            "1year": 365
         }
         
-        base_price = symbol_prices.get(symbol.upper(), 150.0)
-        open_price = base_price * 0.995
-        high_price = base_price * 1.025
-        low_price = base_price * 0.975
+        days_to_fetch = period_map.get(period, 30)
         
-        # Generate intraday points
-        intraday_times = ["09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00"]
+        # Get historical data from database
+        df = get_historical_prices_helper(symbol.upper(), days_to_fetch)
         
+        if df.empty:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"No price data found for symbol {symbol.upper()}"
+            )
+        
+        # Process data based on interval and period
         chart_data = []
-        price_range = high_price - low_price
         
-        for i, time_point in enumerate(intraday_times):
-            progress = i / (len(intraday_times) - 1)
-            base_prog_price = open_price + (base_price - open_price) * progress
-            variation_factor = (i % 3 - 1) * 0.3
-            varied_price = base_prog_price + (price_range * 0.1 * variation_factor)
-            final_price = max(low_price, min(high_price, varied_price))
+        if period == "1day":
+            # For 1day view, simulate intraday data from latest daily data
+            latest_data = df.iloc[-1]
             
-            chart_data.append({
-                "time": time_point,
-                "price": round(final_price, 2)
-            })
+            # Safely convert to float with fallbacks
+            try:
+                base_price = float(latest_data['close_price']) if latest_data['close_price'] is not None else 150.0
+                open_price = float(latest_data['open_price']) if latest_data['open_price'] is not None else base_price * 0.995
+                high_price = float(latest_data['high_price']) if latest_data['high_price'] is not None else base_price * 1.02
+                low_price = float(latest_data['low_price']) if latest_data['low_price'] is not None else base_price * 0.98
+                
+                # Ensure logical price relationships
+                if high_price < base_price:
+                    high_price = base_price * 1.02
+                if low_price > base_price:
+                    low_price = base_price * 0.98
+                if open_price < low_price or open_price > high_price:
+                    open_price = (high_price + low_price) / 2
+                    
+            except (ValueError, TypeError):
+                # Fallback if conversion fails
+                base_price = 150.0
+                open_price = base_price * 0.995
+                high_price = base_price * 1.02
+                low_price = base_price * 0.98
+            
+            # Generate intraday points with realistic variation
+            intraday_times = ["09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00"]
+            
+            # Create smooth progression from open to close with high/low respect
+            price_range = high_price - low_price
+            for i, time_point in enumerate(intraday_times):
+                progress = i / (len(intraday_times) - 1)
+                
+                # Base price progression from open to close
+                base_prog_price = open_price + (base_price - open_price) * progress
+                
+                # Add some realistic variation within high/low bounds
+                variation_factor = (i % 3 - 1) * 0.3  # Creates wave-like pattern
+                varied_price = base_prog_price + (price_range * 0.1 * variation_factor)
+                
+                # Ensure price stays within daily high/low bounds
+                final_price = max(low_price, min(high_price, varied_price))
+                
+                chart_data.append({
+                    "time": time_point,
+                    "price": round(final_price, 2)
+                })
+                
+        else:
+            # For longer periods, use actual daily data
+            df_sorted = df.sort_values('date')
+            
+            # Sample data based on interval for longer periods
+            if period == "1week":
+                sample_size = min(len(df_sorted), 14)  # Up to 2 weeks of daily data
+            elif period == "1month":
+                sample_size = min(len(df_sorted), 30)  # Up to 30 days
+            elif period == "3month":
+                sample_size = min(len(df_sorted), 60)  # Sample every ~1.5 days
+            else:  # 1year
+                sample_size = min(len(df_sorted), 52)  # Weekly sampling
+            
+            # Sample the data
+            if len(df_sorted) > sample_size:
+                step = len(df_sorted) // sample_size
+                sampled_df = df_sorted.iloc[::step][:sample_size]
+            else:
+                sampled_df = df_sorted
+            
+            for _, row in sampled_df.iterrows():
+                # Format time based on period
+                if period in ["1week", "1month"]:
+                    time_str = row.name.strftime("%m/%d")
+                else:  # 3month, 1year
+                    time_str = row.name.strftime("%m/%y")
+                
+                # Safely convert price to float
+                try:
+                    price_value = float(row['close_price']) if row['close_price'] is not None else 0
+                    if price_value > 0:  # Only add valid prices
+                        chart_data.append({
+                            "time": time_str,
+                            "price": round(price_value, 2)
+                        })
+                except (ValueError, TypeError):
+                    continue  # Skip invalid data points
         
         # Calculate metadata
+        if not chart_data:
+            # If no valid data, create minimal fallback
+            chart_data = [
+                {"time": "09:30", "price": 100.0},
+                {"time": "16:00", "price": 100.0}
+            ]
+        
         prices = [point["price"] for point in chart_data]
         min_price = min(prices)
         max_price = max(prices)
-        price_change = prices[-1] - prices[0]
+        price_change = prices[-1] - prices[0] if len(prices) > 1 else 0
         price_change_percent = (price_change / prices[0] * 100) if prices[0] != 0 else 0
         
         return {
@@ -73,8 +166,13 @@ async def get_chart_data(
             "dataPoints": len(chart_data)
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve chart data: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve chart data: {str(e)}"
+        )
 
 @router.get("/api/chart-data-simple/{symbol}", tags=["Core Market Data"])
 async def get_simple_chart_data(
