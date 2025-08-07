@@ -2,9 +2,7 @@
 #!/usr/bin/env python3
 """
 Finance MCP Server - FastAPI with MCP Inspector Compatibility
-A streamlined financial analysis server with async MCP server initialization.
 """
-
 
 import os
 from dotenv import load_dotenv
@@ -13,13 +11,8 @@ from fastapi.responses import JSONResponse
 import uvicorn
 import contextlib
 
-
-# Load environment variables
 load_dotenv()
 
-# Import MCP servers (6 streamlined servers)
-# Note: data_ingestion tools converted to helper functions in finance_helpers.py
-# Note: market_data functionality integrated into other servers to eliminate redundancy
 from mcp_servers import (
     finance_db_company, 
     finance_db_stock_price, 
@@ -41,11 +34,8 @@ async def lifespan(app: FastAPI):
         await stack.enter_async_context(finance_analysis_and_predictions.mcp.session_manager.run())
         yield
 
-
-# Import API routes
 from api.direct_finance_api import router as finance_api_router
 
-# Create FastAPI application with lifespan
 app = FastAPI(
     title="Finance MCP Server",
     description="Streamlined financial analysis platform with 12 essential MCP tools",
@@ -53,12 +43,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-
-# Mount Direct Finance API
 app.include_router(finance_api_router, tags=["Finance API"])
 
-
-# Mount MCP server endpoints
 app.mount("/finance_db_company/", finance_db_company.mcp.streamable_http_app(), name="finance_db_company")
 app.mount("/finance_db_stock_price/", finance_db_stock_price.mcp.streamable_http_app(), name="finance_db_stock_price")
 app.mount("/finance_calculations/", finance_calculations.mcp.streamable_http_app(), name="finance_calculations")
@@ -68,7 +54,6 @@ app.mount("/finance_analysis_and_predictions/", finance_analysis_and_predictions
 
 @app.get("/", tags=["Root"])
 async def root():
-    """Main endpoint with server information"""
     return JSONResponse(content={
         "message": "🏦 Finance MCP Server",
         "status": "operational",
@@ -99,7 +84,6 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Simple health check"""
     return {
         "status": "healthy",
         "service": "finance_mcp_server",
@@ -113,7 +97,6 @@ async def health_check():
 
 @app.get("/tools", tags=["Tools"])
 async def list_tools():
-    """List all available MCP tools by server (helper functions excluded)"""
     return {
         "total_tools": 12,
         "servers": {
@@ -169,7 +152,6 @@ async def list_tools():
 
 @app.get("/config", tags=["Configuration"])
 async def get_configuration():
-    """Get current server configuration and API status"""
     return {
         "server_version": "2.1.0",
         "environment": {

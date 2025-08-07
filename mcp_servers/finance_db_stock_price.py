@@ -1,6 +1,5 @@
 """
 Finance Database Stock Price Server
-Simplified MCP server for stock price data using helper functions
 """
 
 import os
@@ -25,17 +24,7 @@ mcp = FastMCP(name="Finance Stock Price Database Server")
 
 @mcp.tool(description="Get historical stock prices")
 def get_historical_stock_prices(symbol: str, days: int = 30) -> dict:
-    """
-    Get historical stock price data for analysis.
-    
-    Args:
-        symbol: The stock symbol (e.g., 'AAPL')
-        days: Number of days of historical data (default: 30, max: 1000)
-    
-    Returns:
-        Dictionary containing historical price data
-    """
-    days = min(days, 1000)  # Limit to prevent excessive data
+    days = min(days, 1000)
     
     df = get_historical_prices_helper(symbol, days)
     if df.empty:
@@ -71,16 +60,6 @@ def get_historical_stock_prices(symbol: str, days: int = 30) -> dict:
 
 @mcp.tool(description="Update stock price data from external sources")
 def update_stock_prices(symbol: str, force_update: bool = False) -> dict:
-    """
-    Update stock price data for a symbol using external APIs.
-    
-    Args:
-        symbol: The stock symbol to update
-        force_update: Force update even if recent data exists
-    
-    Returns:
-        Dictionary containing update status
-    """
     return update_stock_price_helper(symbol, force_update)
 
 if __name__ == "__main__":

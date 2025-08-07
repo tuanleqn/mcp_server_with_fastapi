@@ -1,6 +1,5 @@
 """
 Finance Calculations Server
-Advanced financial calculations and technical analysis
 """
 
 import os
@@ -33,7 +32,6 @@ def calculate_bollinger_bands(prices: pd.Series, period: int = 20, std_dev: int 
     current_lower = lower_band.iloc[-1]
     current_sma = sma.iloc[-1]
     
-    # Determine position
     if current_price > current_upper:
         position = "above_upper_band"
         signal = "overbought"
@@ -56,7 +54,7 @@ def calculate_bollinger_bands(prices: pd.Series, period: int = 20, std_dev: int 
 
 
 def calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> dict:
-    """Calculate MACD (Moving Average Convergence Divergence)"""
+    """Calculate MACD"""
     ema_fast = prices.ewm(span=fast).mean()
     ema_slow = prices.ewm(span=slow).mean()
     
@@ -68,7 +66,6 @@ def calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: in
     current_signal = signal_line.iloc[-1]
     current_histogram = histogram.iloc[-1]
     
-    # Determine signals
     if current_macd > current_signal and current_histogram > 0:
         trend_signal = "bullish"
     elif current_macd < current_signal and current_histogram < 0:
@@ -87,92 +84,63 @@ def calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: in
 
 @mcp.tool(description="Calculate comprehensive technical analysis")
 def calculate_advanced_technical_analysis(symbol: str, period: int = 100) -> dict:
-    """
-    Calculate comprehensive technical analysis including multiple indicators.
-    
-    Args:
-        symbol: The stock symbol (e.g., 'AAPL')
-        period: Number of days of data to analyze (default: 100)
-    
-    Returns:
-        Dictionary containing comprehensive technical analysis
-    """
     try:
         df = get_historical_prices_helper(symbol, period + 50)
         if df.empty or len(df) < 50:
             return {
                 "success": False,
-                "error": f"Insufficient data for technical analysis of {symbol} - got {len(df) if not df.empty else 0} records",
+                "error": f"Insufficient data for technical analysis of {symbol}",
                 "symbol": symbol.upper()
             }
         
-        print(f"Retrieved {len(df)} records for {symbol} technical analysis")
-        
         prices = df['close_price']
         volumes = df['volume']
-        current_price = prices.iloc[-1]  # Define current_price first
+        current_price = prices.iloc[-1]
         
-        # Basic indicators with individual error handling
         rsi_result = calculate_rsi_helper(symbol, 14)
         sma20_result = calculate_sma_helper(symbol, 20)
         sma50_result = calculate_sma_helper(symbol, 50)
         
-        # Advanced indicators with error handling
         try:
             bollinger = calculate_bollinger_bands(prices, 20, 2)
         except Exception as e:
-            print(f"Bollinger Bands calculation failed: {e}")
             bollinger = {"upper_band": 0, "lower_band": 0, "signal": "error"}
             
         try:
             macd = calculate_macd(prices, 12, 26, 9)
         except Exception as e:
-            print(f"MACD calculation failed: {e}")
             macd = {"macd": 0, "signal": 0, "trend": "error"}
     
-        # Extract RSI value properly with error handling
         if rsi_result.get("success"):
             current_rsi = rsi_result.get("rsi", 0)
         else:
-            print(f"RSI calculation failed for {symbol}: {rsi_result.get('error', 'Unknown error')}")
             current_rsi = 0
         
         if sma20_result.get("success"):
             current_sma20 = sma20_result.get("sma", current_price)
         else:
-            print(f"SMA20 calculation failed for {symbol}: {sma20_result.get('error', 'Unknown error')}")
             current_sma20 = current_price
             
         if sma50_result.get("success"):
             current_sma50 = sma50_result.get("sma", current_price)
         else:
-            print(f"SMA50 calculation failed for {symbol}: {sma50_result.get('error', 'Unknown error')}")
             current_sma50 = current_price
         
-        # Debug output
-        print(f"Technical analysis for {symbol}: Price=${current_price:.2f}, RSI={current_rsi:.2f}, SMA20=${current_sma20:.2f}")
-        
-        # Volatility analysis
         returns = prices.pct_change().dropna()
         volatility_daily = returns.std()
         volatility_annual = volatility_daily * np.sqrt(252) * 100
         
-        # Volume analysis
         avg_volume = volumes.rolling(window=20).mean().iloc[-1]
         current_volume = volumes.iloc[-1]
         volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
         
-        # Support and resistance levels (simplified)
         recent_prices = prices.tail(20)
         resistance = recent_prices.max()
         support = recent_prices.min()
-        # Don't redefine current_price here since we already have it
         
-        # Overall trend analysis
         short_trend = "bullish" if current_price > current_sma20 else "bearish"
         long_trend = "bullish" if current_price > current_sma50 else "bearish"
         
-        # Trading signals
         signals = []
         if current_rsi > 70:
             signals.append("RSI Overbought")
@@ -239,132 +207,15 @@ def calculate_advanced_technical_analysis(symbol: str, period: int = 100) -> dic
         }
     
     except Exception as e:
-        print(f"Technical analysis error for {symbol}: {e}")
-        import traceback
-        traceback.print_exc()
         return {
             "success": False,
             "error": f"Technical analysis failed: {str(e)}",
             "symbol": symbol.upper()
         }
-    
-    # Extract RSI value properly with error handling
-    if rsi_result.get("success"):
-        current_rsi = rsi_result.get("rsi", 0)
-    else:
-        print(f"RSI calculation failed for {symbol}: {rsi_result.get('error', 'Unknown error')}")
-        current_rsi = 0
-    
-    if sma20_result.get("success"):
-        current_sma20 = sma20_result.get("sma", current_price)
-    else:
-        print(f"SMA20 calculation failed for {symbol}: {sma20_result.get('error', 'Unknown error')}")
-        current_sma20 = current_price
-        
-    if sma50_result.get("success"):
-        current_sma50 = sma50_result.get("sma", current_price)
-    else:
-        print(f"SMA50 calculation failed for {symbol}: {sma50_result.get('error', 'Unknown error')}")
-        current_sma50 = current_price
-    
-    # Debug output
-    print(f"Technical analysis for {symbol}: Price=${current_price:.2f}, RSI={current_rsi:.2f}, SMA20=${current_sma20:.2f}")
-    
-    # Volatility analysis
-    returns = prices.pct_change().dropna()
-    volatility_daily = returns.std()
-    volatility_annual = volatility_daily * np.sqrt(252) * 100
-    
-    # Volume analysis
-    avg_volume = volumes.rolling(window=20).mean().iloc[-1]
-    current_volume = volumes.iloc[-1]
-    volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
-    
-    # Support and resistance levels (simplified)
-    recent_prices = prices.tail(20)
-    resistance = recent_prices.max()
-    support = recent_prices.min()
-    # Don't redefine current_price here since we already have it
-    
-    # Overall trend analysis
-    short_trend = "bullish" if current_price > current_sma20 else "bearish"
-    long_trend = "bullish" if current_price > current_sma50 else "bearish"
-    
-    # Trading signals
-    signals = []
-    if current_rsi > 70:
-        signals.append("RSI Overbought")
-    elif current_rsi < 30:
-        signals.append("RSI Oversold")
-    
-    if bollinger["position"] == "above_upper_band":
-        signals.append("Price Above Bollinger Upper Band")
-    elif bollinger["position"] == "below_lower_band":
-        signals.append("Price Below Bollinger Lower Band")
-    
-    if macd["trend_signal"] == "bullish":
-        signals.append("MACD Bullish Signal")
-    elif macd["trend_signal"] == "bearish":
-        signals.append("MACD Bearish Signal")
-    
-    return {
-        "success": True,
-        "symbol": symbol.upper(),
-        "current_price": round(float(current_price), 2),
-        "rsi": {
-            "current_rsi": current_rsi,
-            "interpretation": "overbought" if current_rsi > 70 else "oversold" if current_rsi < 30 else "neutral"
-        },
-        "bollinger_bands": {
-            "upper_band": bollinger.get("upper_band", 0),
-            "lower_band": bollinger.get("lower_band", 0),
-            "signal": bollinger.get("signal", "neutral")
-        },
-        "macd": {
-            "macd_value": macd.get("macd", 0),
-            "signal_line": macd.get("signal", 0),
-            "signal": macd.get("trend", "neutral")
-        },
-        "basic_indicators": {
-            "rsi_14": current_rsi,
-            "sma_20": round(float(current_sma20), 2),
-            "sma_50": round(float(current_sma50), 2)
-        },
-        "risk_metrics": {
-            "daily_volatility": round(volatility_daily * 100, 2),
-            "annual_volatility": round(volatility_annual, 2),
-            "volume_ratio": round(volume_ratio, 2),
-            "volume_signal": "high" if volume_ratio > 1.5 else "normal" if volume_ratio > 0.5 else "low"
-        },
-        "price_levels": {
-            "current": round(float(current_price), 2),
-            "resistance": round(float(resistance), 2),
-            "support": round(float(support), 2),
-            "distance_to_resistance": round(((resistance - current_price) / current_price) * 100, 2),
-            "distance_to_support": round(((current_price - support) / current_price) * 100, 2)
-        },
-        "trend_analysis": {
-            "short_term": short_trend,
-            "long_term": long_trend,
-            "overall": "bullish" if short_trend == "bullish" and long_trend == "bullish" else "bearish" if short_trend == "bearish" and long_trend == "bearish" else "mixed"
-        },
-        "trading_signals": signals,
-        "analysis_date": rsi_result.get("calculation_date", datetime.now().isoformat())
-    }
 
 
 @mcp.tool(description="Calculate financial ratios from price data")
 def calculate_financial_ratios(symbol: str, period: int = 252) -> dict:
-    """
-    Calculate key financial ratios based on price and volume data.
-    
-    Args:
-        symbol: The stock symbol (e.g., 'AAPL')
-        period: Number of days for analysis (default: 252)
-    
-    Returns:
-        Dictionary containing financial ratios
-    """
     df = get_historical_prices_helper(symbol, period + 10)
     if df.empty or len(df) < 50:
         return {
@@ -373,7 +224,6 @@ def calculate_financial_ratios(symbol: str, period: int = 252) -> dict:
             "symbol": symbol.upper()
         }
     
-    # Ensure all data is float to avoid Decimal type issues
     prices = df['close_price'].astype(float)
     volumes = df['volume'].astype(float)
     highs = df['high_price'].astype(float)
@@ -381,34 +231,27 @@ def calculate_financial_ratios(symbol: str, period: int = 252) -> dict:
     
     current_price = float(prices.iloc[-1])
     
-    # Price ratios - ensure float conversion
     price_52w_high = float(highs.max())
     price_52w_low = float(lows.min())
     
-    # Returns
     returns = prices.pct_change().dropna()
     annual_return = float(returns.mean() * 252)
     
-    # Risk-adjusted metrics
     volatility = float(returns.std() * np.sqrt(252))
     sharpe_ratio = float(annual_return / volatility) if volatility > 0 else 0.0
     
-    # Momentum indicators - ensure float operations
     price_change_1m = float((prices.iloc[-1] / prices.iloc[-21]) - 1) if len(prices) > 21 else 0.0
     price_change_3m = float((prices.iloc[-1] / prices.iloc[-63]) - 1) if len(prices) > 63 else 0.0
     price_change_6m = float((prices.iloc[-1] / prices.iloc[-126]) - 1) if len(prices) > 126 else 0.0
     
-    # Volume metrics
     avg_volume = float(volumes.mean())
     volume_trend = "increasing" if float(volumes.tail(10).mean()) > float(volumes.head(10).mean()) else "decreasing"
     
-    # Calculate max drawdown
     cumulative_returns = (1 + returns).cumprod()
     rolling_max = cumulative_returns.expanding().max()
     drawdown = (cumulative_returns - rolling_max) / rolling_max
     max_drawdown = float(abs(drawdown.min()))
     
-    # Calculate win rate
     positive_returns = returns[returns > 0]
     win_rate = float(len(positive_returns) / len(returns) * 100) if len(returns) > 0 else 0.0
     
@@ -416,11 +259,10 @@ def calculate_financial_ratios(symbol: str, period: int = 252) -> dict:
         "success": True,
         "symbol": symbol.upper(),
         "current_price": round(current_price, 2),
-        # Add top-level fields that showcase expects
         "annualized_return": round(annual_return * 100, 2),
         "max_drawdown": round(max_drawdown * 100, 2),
         "win_rate": round(win_rate, 1),
-        "volatility": round(volatility * 100, 2),  # Add the missing volatility field
+        "volatility": round(volatility * 100, 2),
         "price_ratios": {
             "price_to_52w_high": round((current_price / price_52w_high), 3),
             "price_to_52w_low": round((current_price / price_52w_low), 3),

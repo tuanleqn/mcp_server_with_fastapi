@@ -22,7 +22,23 @@ DB_URI = os.getenv("FINANCE_DB_URI", None)
 if not DB_URI:
     raise ValueError("Database URI not found in environment variables.")
 
-mcp = FastMCP(name="Finance MCP Server - Analysis (Simplified)")
+"""
+Finance Analysis and Predictions Server
+"""
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import os
+import pandas as pd
+import numpy as np
+from mcp.server.fastmcp import FastMCP
+from dotenv import load_dotenv
+from .finance_helpers import get_historical_prices_helper
+
+load_dotenv()
+
+mcp = FastMCP(name="Finance Analysis and Predictions Server")
 
 # Define a path to save/load the trained model
 MODEL_DIR = "ml_models"
@@ -60,7 +76,6 @@ def _get_historical_prices_for_ml(symbol: str, days: int) -> pd.DataFrame:
                 df = df.sort_values('date').set_index('date')
                 return df
     except Error as e:
-        print(f"Database error in _get_historical_prices_for_ml: {e}")
         return pd.DataFrame()
 
 def _calculate_basic_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -310,12 +325,9 @@ def predict_stock_price(symbol: str, days_ahead: int = 1) -> dict:
         scaler_path = os.path.join(MODEL_DIR, f"{symbol}_scaler.pkl")
 
         if not (os.path.exists(model_path) and os.path.exists(scaler_path)):
-            # Automatically train the model if it doesn't exist
-            print(f"No model found for {symbol}. Training new model...")
             train_result = train_stock_prediction_model_internal(symbol)
             if "error" in train_result:
                 return train_result
-            print(f"Model training completed for {symbol}")
 
         # Load ensemble model components
         try:
@@ -326,12 +338,9 @@ def predict_stock_price(symbol: str, days_ahead: int = 1) -> dict:
                 ensemble_weights = model_data['weights']
                 feature_columns = model_data['features']
             else:
-                # Old single model format - retrain with new architecture
-                print(f"Retraining {symbol} model with new ensemble architecture...")
                 train_result = train_stock_prediction_model_internal(symbol)
                 if "error" in train_result:
                     return train_result
-                print(f"Model retraining completed for {symbol}")
                 
                 # Reload the new model
                 model_data = joblib.load(model_path)
@@ -343,11 +352,9 @@ def predict_stock_price(symbol: str, days_ahead: int = 1) -> dict:
                     return {"error": f"Model format error for {symbol} after retraining - missing ensemble structure"}
         except Exception as e:
             # If there's any issue loading the model, retrain it
-            print(f"Model loading failed for {symbol}, retraining: {e}")
             train_result = train_stock_prediction_model_internal(symbol)
             if "error" in train_result:
                 return train_result
-            print(f"Model retraining completed for {symbol}")
             
             # Reload the new model
             try:

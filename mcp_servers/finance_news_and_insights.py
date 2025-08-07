@@ -1,6 +1,5 @@
 """
 Finance News and Insights Server
-Simplified MCP server for financial news and sentiment analysis
 """
 
 import os
@@ -11,15 +10,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-NEWS_API_KEY = os.getenv("NEWSAPI_KEY")  # Fixed: using NEWSAPI_KEY from .env
+NEWS_API_KEY = os.getenv("NEWSAPI_KEY")
 
 mcp = FastMCP(name="Finance News and Insights Server")
 
 
 def analyze_sentiment_simple(text: str) -> dict:
-    """
-    Simple rule-based sentiment analysis for financial text.
-    """
     if not text:
         return {"sentiment": "neutral", "score": 0, "confidence": 20}
     
@@ -66,26 +62,12 @@ def analyze_sentiment_simple(text: str) -> dict:
 
 @mcp.tool(description="Get financial news headlines")
 def get_financial_news(query: str = "financial markets", limit: int = 10) -> dict:
-    """
-    Get financial news headlines using NewsAPI.
-    
-    Args:
-        query: Search query for news (default: "financial markets")
-        limit: Maximum number of articles (default: 10, max: 50)
-    
-    Returns:
-        Dictionary containing news articles with sentiment analysis
-    """
     limit = min(limit, 50)
-    
-    print(f"DEBUG: NEWS_API_KEY configured: {bool(NEWS_API_KEY)}")
-    print(f"DEBUG: NEWS_API_KEY length: {len(NEWS_API_KEY) if NEWS_API_KEY else 0}")
-    print(f"DEBUG: NEWS_API_KEY value: {NEWS_API_KEY[:10]}..." if NEWS_API_KEY else "DEBUG: NEWS_API_KEY is None/empty")
     
     if not NEWS_API_KEY or NEWS_API_KEY.strip() == "":
         return {
             "success": False,
-            "error": "NEWS_API_KEY not configured. Please add NEWSAPI_KEY to your .env file to get real financial news",
+            "error": "NEWS_API_KEY not configured",
             "query": query,
             "articles_found": 0,
             "articles": []
@@ -102,25 +84,15 @@ def get_financial_news(query: str = "financial markets", limit: int = 10) -> dic
             "apiKey": NEWS_API_KEY.strip()
         }
         
-        print(f"DEBUG: Making NewsAPI request to: {url}")
-        print(f"DEBUG: Query: {params['q']}")
-        
         response = requests.get(url, params=params, timeout=10)
-        print(f"DEBUG: NewsAPI response status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
-            print(f"DEBUG: NewsAPI returned {len(data.get('articles', []))} articles")
-            print(f"DEBUG: Raw API response keys: {list(data.keys())}")
-            if data.get('articles'):
-                print(f"DEBUG: First article title: {data['articles'][0].get('title', 'NO_TITLE')}")
-                print(f"DEBUG: First article source: {data['articles'][0].get('source', {}).get('name', 'NO_SOURCE')}")
             
             articles = []
             
             for article in data.get("articles", []):
                 if article.get("title") and article.get("description"):
-                    # Analyze sentiment for each article
                     text_for_analysis = f"{article['title']} {article['description']}"
                     sentiment = analyze_sentiment_simple(text_for_analysis)
                     
@@ -132,12 +104,7 @@ def get_financial_news(query: str = "financial markets", limit: int = 10) -> dic
                         "source": article.get("source", {}).get("name", "Unknown"),
                         "sentiment": sentiment
                     })
-            
-            print(f"DEBUG: Processed {len(articles)} articles")
-            if articles:
-                print(f"DEBUG: Final first article title: {articles[0]['title']}")
-                print(f"DEBUG: Final first article source: {articles[0]['source']}")
-            
+                
             return {
                 "success": True,
                 "query": query,
@@ -155,7 +122,6 @@ def get_financial_news(query: str = "financial markets", limit: int = 10) -> dic
             except:
                 pass
             
-            print(f"DEBUG: NewsAPI error: {error_msg}")
             return {
                 "success": False,
                 "error": error_msg,
@@ -165,7 +131,6 @@ def get_financial_news(query: str = "financial markets", limit: int = 10) -> dic
             }
             
     except Exception as e:
-        print(f"DEBUG: NewsAPI exception: {str(e)}")
         return {
             "success": False,
             "error": f"Failed to fetch news: {str(e)}",
@@ -177,17 +142,6 @@ def get_financial_news(query: str = "financial markets", limit: int = 10) -> dic
 
 @mcp.tool(description="Analyze market sentiment from news")
 def get_market_sentiment(query: str = "stock market", limit: int = 20) -> dict:
-    """
-    Analyze overall market sentiment based on recent news.
-    
-    Args:
-        query: Search query for sentiment analysis (default: "stock market")
-        limit: Number of articles to analyze (default: 20)
-    
-    Returns:
-        Dictionary containing sentiment analysis results
-    """
-    # Get news articles
     news_result = get_financial_news(query, limit)
     
     if not news_result.get("success"):

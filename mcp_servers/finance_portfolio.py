@@ -1,6 +1,5 @@
 """
 Finance Portfolio Server
-Simplified MCP server for portfolio analysis using helper functions
 """
 
 import os
@@ -17,24 +16,12 @@ mcp = FastMCP(name="Finance Portfolio Server")
 
 @mcp.tool(description="Calculate portfolio risk metrics")
 def analyze_portfolio(symbols: list, weights: list = None, period: int = 252) -> dict:
-    """
-    Calculate risk metrics for a portfolio of stocks.
-    
-    Args:
-        symbols: List of stock symbols
-        weights: List of weights (if None, equal weighting is used)
-        period: Number of days for analysis (default: 252 for 1 year)
-    
-    Returns:
-        Dictionary containing portfolio risk metrics
-    """
     if not symbols:
         return {
             "success": False,
             "error": "No symbols provided"
         }
     
-    # Handle different input formats for symbols
     if isinstance(symbols, str):
         symbols = [s.strip().upper() for s in symbols.split(',') if s.strip()]
     elif isinstance(symbols, list):
@@ -51,7 +38,6 @@ def analyze_portfolio(symbols: list, weights: list = None, period: int = 252) ->
             "error": "No valid symbols provided after processing"
         }
     
-    # Use equal weights if not provided
     if weights is None:
         weights = [1.0 / len(symbols)] * len(symbols)
     
@@ -61,11 +47,9 @@ def analyze_portfolio(symbols: list, weights: list = None, period: int = 252) ->
             "error": "Number of weights must match number of symbols"
         }
     
-    # Normalize weights
     total_weight = sum(weights)
     weights = [w / total_weight for w in weights]
     
-    # Get returns for all symbols
     returns_data = {}
     for symbol in symbols:
         df = get_historical_prices_helper(symbol, period + 10)
@@ -79,11 +63,9 @@ def analyze_portfolio(symbols: list, weights: list = None, period: int = 252) ->
             "error": "No valid data found for any symbols"
         }
     
-    # Calculate portfolio metrics
     valid_symbols = list(returns_data.keys())
     valid_weights = weights[:len(valid_symbols)]
     
-    # Portfolio return
     portfolio_returns = []
     min_length = min(len(returns) for returns in returns_data.values())
     
@@ -96,20 +78,16 @@ def analyze_portfolio(symbols: list, weights: list = None, period: int = 252) ->
     
     portfolio_returns = pd.Series(portfolio_returns)
     
-    # Risk metrics
     portfolio_volatility = portfolio_returns.std() * np.sqrt(252)
     portfolio_return = portfolio_returns.mean() * 252
     
-    # Value at Risk (95% confidence)
     var_95 = np.percentile(portfolio_returns, 5) * np.sqrt(252)
     
-    # Maximum Drawdown
     cumulative_returns = (1 + portfolio_returns).cumprod()
     rolling_max = cumulative_returns.expanding().max()
     drawdown = (cumulative_returns - rolling_max) / rolling_max
     max_drawdown = drawdown.min()
     
-    # Sharpe Ratio (assuming 0% risk-free rate)
     sharpe_ratio = portfolio_return / portfolio_volatility if portfolio_volatility > 0 else 0
     
     return {
@@ -142,23 +120,12 @@ def analyze_portfolio(symbols: list, weights: list = None, period: int = 252) ->
 
 @mcp.tool(description="Optimize portfolio weights for equal risk contribution")
 def optimize_equal_risk_portfolio(symbols) -> dict:
-    """
-    Create an equal risk contribution portfolio.
-    
-    Args:
-        symbols: List of stock symbols (string list or comma-separated string)
-    
-    Returns:
-        Dictionary containing optimized portfolio weights
-    """
-    # Handle different input formats
     if not symbols:
         return {
             "success": False,
             "error": "No symbols provided"
         }
     
-    # Convert string to list if needed
     if isinstance(symbols, str):
         symbols = [s.strip().upper() for s in symbols.split(',') if s.strip()]
     elif isinstance(symbols, list):
@@ -175,41 +142,31 @@ def optimize_equal_risk_portfolio(symbols) -> dict:
             "error": "No valid symbols provided after processing"
         }
     
-    print(f"DEBUG: Processing symbols: {symbols}")
-    
     symbol_volatilities = []
     valid_symbols = []
     
     for symbol in symbols:
-        df = get_historical_prices_helper(symbol, 252)  # 1 year
+        df = get_historical_prices_helper(symbol, 252)
         if not df.empty and len(df) > 50:
             returns = df['close_price'].pct_change().dropna()
-            volatility = returns.std() * np.sqrt(252)  # Annualized
+            volatility = returns.std() * np.sqrt(252)
             symbol_volatilities.append(volatility)
             valid_symbols.append(symbol)
-            print(f"DEBUG: {symbol} volatility: {volatility:.4f}")
-        else:
-            print(f"DEBUG: Insufficient data for {symbol}")
     
     if not symbol_volatilities:
         return {
             "success": False,
-            "error": f"No symbols have sufficient historical data. Tried: {', '.join(symbols)}"
+            "error": f"No symbols have sufficient historical data"
         }
     
-    # Inverse volatility weighting
     inverse_vols = [1 / vol if vol > 0 else 0 for vol in symbol_volatilities]
     total_inverse = sum(inverse_vols)
     
     if total_inverse == 0:
-        # Fallback to equal weighting
         weights = [1.0 / len(valid_symbols)] * len(valid_symbols)
     else:
         weights = [inv_vol / total_inverse for inv_vol in inverse_vols]
     
-    print(f"DEBUG: Calculated weights: {weights}")
-    
-    # Analyze the optimized portfolio
     portfolio_analysis = analyze_portfolio(valid_symbols, weights)
     
     if portfolio_analysis.get("success"):
