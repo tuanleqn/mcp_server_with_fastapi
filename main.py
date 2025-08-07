@@ -18,14 +18,14 @@ load_dotenv()
 
 # Import MCP servers
 from mcp_servers import (
-    finance_db_company, 
-    finance_db_stock_price, 
+    finance_db_company,
+    finance_db_stock_price,
     finance_data_ingestion,
     finance_calculations,
     finance_portfolio,
     finance_news_and_insights,
     finance_analysis_and_predictions,
-    finance_market_data
+    finance_market_data,
 )
 
 # Import Direct Finance API (no authentication needed)
@@ -38,22 +38,30 @@ async def lifespan(app: FastAPI):
     Application lifespan manager - handles startup and shutdown of MCP servers
     """
     print("🚀 Starting Finance MCP Server...")
-    
+
     async with contextlib.AsyncExitStack() as stack:
         # Database servers
         print("💾 Starting database servers...")
         await stack.enter_async_context(finance_db_company.mcp.session_manager.run())
-        await stack.enter_async_context(finance_db_stock_price.mcp.session_manager.run())
-        
+        await stack.enter_async_context(
+            finance_db_stock_price.mcp.session_manager.run()
+        )
+
         # Finance analysis servers
         print("📊 Starting finance analysis servers...")
-        await stack.enter_async_context(finance_data_ingestion.mcp.session_manager.run())
+        await stack.enter_async_context(
+            finance_data_ingestion.mcp.session_manager.run()
+        )
         await stack.enter_async_context(finance_calculations.mcp.session_manager.run())
         await stack.enter_async_context(finance_portfolio.mcp.session_manager.run())
-        await stack.enter_async_context(finance_news_and_insights.mcp.session_manager.run())
-        await stack.enter_async_context(finance_analysis_and_predictions.mcp.session_manager.run())
+        await stack.enter_async_context(
+            finance_news_and_insights.mcp.session_manager.run()
+        )
+        await stack.enter_async_context(
+            finance_analysis_and_predictions.mcp.session_manager.run()
+        )
         await stack.enter_async_context(finance_market_data.mcp.session_manager.run())
-        
+
         print("✅ All MCP servers started successfully!")
         yield
         print("🛑 Shutting down Finance MCP Server...")
@@ -90,7 +98,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Mount static files for dashboard
@@ -159,7 +167,7 @@ async def read_root():
     if os.path.exists("static/index.html"):
         with open("static/index.html", "r") as f:
             return HTMLResponse(content=f.read())
-    
+
     # Otherwise return JSON API info
     return {
         "message": "🏦 Finance MCP Server",
@@ -171,15 +179,18 @@ async def read_root():
             "alternative_docs": "/redoc",
             "health_check": "/health",
             "server_status": "/status",
-            "available_tools": "/tools"
+            "available_tools": "/tools",
         },
         "mcp_servers": [
-            "finance_db_company", "finance_db_stock_price", 
-            "finance_data_ingestion", "finance_calculations",
-            "finance_portfolio", 
-            "finance_news_and_insights", "finance_analysis_and_predictions",
-            "finance_market_data"
-        ]
+            "finance_db_company",
+            "finance_db_stock_price",
+            "finance_data_ingestion",
+            "finance_calculations",
+            "finance_portfolio",
+            "finance_news_and_insights",
+            "finance_analysis_and_predictions",
+            "finance_market_data",
+        ],
     }
 
 
@@ -196,17 +207,19 @@ async def health_check():
         "mcp_servers": {
             "database": ["finance_db_company", "finance_db_stock_price"],
             "analysis": [
-                "finance_data_ingestion", "finance_calculations",
-                "finance_portfolio", 
-                "finance_news_and_insights", "finance_analysis_and_predictions",
-                "finance_market_data"
-            ]
+                "finance_data_ingestion",
+                "finance_calculations",
+                "finance_portfolio",
+                "finance_news_and_insights",
+                "finance_analysis_and_predictions",
+                "finance_market_data",
+            ],
         },
         "endpoints_count": 8,
         "environment": {
             "has_api_keys": bool(os.getenv("EXTERNAL_FINANCE_API_KEY")),
-            "static_files": os.path.exists("static")
-        }
+            "static_files": os.path.exists("static"),
+        },
     }
 
 
@@ -221,17 +234,19 @@ async def server_status():
             "version": "1.0.0",
             "status": "running",
             "host": "127.0.0.1",
-            "port": 8000
+            "port": 8000,
         },
         "configuration": {
             "environment_loaded": True,
             "api_keys_configured": {
                 "external_finance_api": bool(os.getenv("EXTERNAL_FINANCE_API_KEY")),
                 "finnhub": bool(os.getenv("FINNHUB_API_KEY")),
-                "news_api": bool(os.getenv("NEWS_API_KEY"))
+                "news_api": bool(os.getenv("NEWS_API_KEY")),
             },
             "static_files_available": os.path.exists("static"),
-            "database_path": os.path.exists("data") if os.path.exists("data") else "Not configured"
+            "database_path": os.path.exists("data")
+            if os.path.exists("data")
+            else "Not configured",
         },
         "mcp_endpoints": {
             "/finance_db_company/": "Company database operations",
@@ -241,8 +256,8 @@ async def server_status():
             "/finance_portfolio/": "Portfolio management",
             "/finance_news_and_insights/": "News and market insights",
             "/finance_analysis_and_predictions/": "Analysis and predictions",
-            "/finance_market_data/": "Real-time market data"
-        }
+            "/finance_market_data/": "Real-time market data",
+        },
     }
 
 
@@ -255,23 +270,23 @@ async def available_tools():
         "available_tools": {
             "database_operations": {
                 "finance_db_company": "Company information storage and retrieval",
-                "finance_db_stock_price": "Historical stock price data management"
+                "finance_db_stock_price": "Historical stock price data management",
             },
             "data_analysis": {
                 "finance_data_ingestion": "Import data from multiple financial sources",
                 "finance_calculations": "Advanced financial calculations and metrics",
-                "finance_market_data": "Real-time market data for stocks, crypto, forex"
+                "finance_market_data": "Real-time market data for stocks, crypto, forex",
             },
             "portfolio_management": {
                 "finance_portfolio": "Portfolio tracking, optimization, and analysis"
             },
             "intelligence": {
                 "finance_news_and_insights": "News aggregation and sentiment analysis",
-                "finance_analysis_and_predictions": "ML-based predictions and analysis"
-            }
+                "finance_analysis_and_predictions": "ML-based predictions and analysis",
+            },
         },
         "usage": "Access tools via their respective endpoints (e.g., /finance_market_data/)",
-        "documentation": "Visit /docs for interactive API documentation"
+        "documentation": "Visit /docs for interactive API documentation",
     }
 
 
@@ -283,17 +298,18 @@ async def not_found_handler(request, exc):
         content={
             "error": "Endpoint not found",
             "message": "The requested endpoint does not exist",
-            "available_endpoints": [
-                "/", "/docs", "/health", "/status", "/tools"
-            ],
+            "available_endpoints": ["/", "/docs", "/health", "/status", "/tools"],
             "mcp_endpoints": [
-                "/finance_db_company/", "/finance_db_stock_price/",
-                "/finance_data_ingestion/", "/finance_calculations/",
+                "/finance_db_company/",
+                "/finance_db_stock_price/",
+                "/finance_data_ingestion/",
+                "/finance_calculations/",
                 "/finance_portfolio/",
-                "/finance_news_and_insights/", "/finance_analysis_and_predictions/",
-                "/finance_market_data/"
-            ]
-        }
+                "/finance_news_and_insights/",
+                "/finance_analysis_and_predictions/",
+                "/finance_market_data/",
+            ],
+        },
     )
 
 
@@ -307,13 +323,13 @@ if __name__ == "__main__":
     print("📊 Server Status: http://127.0.0.1:8000/status")
     print("🛠️ Available Tools: http://127.0.0.1:8000/tools")
     print()
-    
+
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=8000,
         log_level="info",
         reload=True,
         reload_dirs=["mcp_servers", "utils"],
-        reload_includes=["*.py"]
+        reload_includes=["*.py"],
     )
