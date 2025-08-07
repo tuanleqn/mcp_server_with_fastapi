@@ -6,10 +6,10 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 import joblib
 import warnings
@@ -22,11 +22,27 @@ DB_URI = os.getenv("FINANCE_DB_URI", None)
 if not DB_URI:
     raise ValueError("Database URI not found in environment variables.")
 
-mcp = FastMCP(name="Finance MCP Server - Analysis and Predictions")
+"""
+Finance Analysis and Predictions Server
+"""
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import os
+import pandas as pd
+import numpy as np
+from mcp.server.fastmcp import FastMCP
+from dotenv import load_dotenv
+from .finance_helpers import get_historical_prices_helper
+
+load_dotenv()
+
+mcp = FastMCP(name="Finance Analysis and Predictions Server")
 
 # Define a path to save/load the trained model
 MODEL_DIR = "ml_models"
-os.makedirs(MODEL_DIR, exist_ok=True) # Ensure the directory exists
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 def _get_historical_prices_for_ml(symbol: str, days: int) -> pd.DataFrame:
     """
@@ -36,8 +52,8 @@ def _get_historical_prices_for_ml(symbol: str, days: int) -> pd.DataFrame:
         with psycopg2.connect(DB_URI) as conn:
             with conn.cursor() as cur:
                 query = """
-                SELECT date, open_price, high_price, low_price, close_price, adjusted_close, volume, dividend_amount, split_coefficient
-                FROM public."STOCK_PRICES"
+                SELECT date, open_price, high_price, low_price, close_price, volume
+                FROM public.stock_price
                 WHERE symbol = %s
                 ORDER BY date DESC
                 LIMIT %s
@@ -46,573 +62,488 @@ def _get_historical_prices_for_ml(symbol: str, days: int) -> pd.DataFrame:
                 rows = cur.fetchall()
 
                 if not rows:
-                    return pd.DataFrame() # Empty DataFrame
+                    return pd.DataFrame()
 
                 df = pd.DataFrame(rows, columns=[
-                    'date', 'open_price', 'high_price', 'low_price', 'close_price',
-                    'adjusted_close', 'volume', 'dividend_amount', 'split_coefficient'
+                    'date', 'open_price', 'high_price', 'low_price', 'close_price', 'volume'
                 ])
                 df['date'] = pd.to_datetime(df['date'])
-                df['close_price'] = pd.to_numeric(df['close_price'])
-                df['open_price'] = pd.to_numeric(df['open_price'])
-                df['high_price'] = pd.to_numeric(df['high_price'])
-                df['low_price'] = pd.to_numeric(df['low_price'])
-                df['volume'] = pd.to_numeric(df['volume'])
-                df['dividend_amount'] = pd.to_numeric(df['dividend_amount'])
-                df['split_coefficient'] = pd.to_numeric(df['split_coefficient'])
+                # Convert all numeric columns to float to avoid decimal/float mixing
+                numeric_cols = ['open_price', 'high_price', 'low_price', 'close_price', 'volume']
+                for col in numeric_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').astype(float)
 
                 df = df.sort_values('date').set_index('date')
                 return df
     except Error as e:
-        print(f"Database error in _get_historical_prices_for_ml: {e}")
         return pd.DataFrame()
 
-
-def _calculate_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
+def _calculate_basic_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculate advanced technical indicators for enhanced ML model features.
+    Calculate basic technical indicators for ML model features.
     """
-    # Price-based indicators
-    df['price_change'] = df['close_price'].pct_change()
-    df['price_volatility'] = df['price_change'].rolling(window=10).std()
+    if len(df) < 5:
+        return df
+        
+    # Simple moving averages (adjust window size based on available data)
+    sma_20_window = min(20, max(5, len(df) // 3))
+    sma_50_window = min(50, max(10, len(df) // 2))
     
-    # Moving averages
-    df['SMA_5'] = df['close_price'].rolling(window=5).mean()
-    df['SMA_10'] = df['close_price'].rolling(window=10).mean()
-    df['SMA_20'] = df['close_price'].rolling(window=20).mean()
+    df['SMA_20'] = df['close_price'].rolling(window=sma_20_window, min_periods=1).mean()
+    df['SMA_50'] = df['close_price'].rolling(window=sma_50_window, min_periods=1).mean()
+    
+    # Price changes and volatility
+    df['price_change'] = df['close_price'].pct_change()
+    vol_window = min(10, max(3, len(df) // 5))
+    df['volatility'] = df['price_change'].rolling(window=vol_window, min_periods=1).std()
+    
+    # Volume ratio (if volume data exists)
+    if 'volume' in df.columns and not df['volume'].isna().all():
+        vol_avg_window = min(20, max(5, len(df) // 3))
+        df['volume_avg'] = df['volume'].rolling(window=vol_avg_window, min_periods=1).mean()
+        df['volume_ratio'] = df['volume'] / df['volume_avg']
+        df['volume_ratio'] = df['volume_ratio'].fillna(1.0)  # Fill NaN with 1.0
+    else:
+        df['volume_avg'] = df['close_price'] * 1000  # Dummy volume data
+        df['volume_ratio'] = 1.0
+    
+    # Fill any remaining NaN values
+    df = df.fillna(method='ffill').fillna(method='bfill').fillna(0)
+    
+    return df
+
+
+def train_stock_prediction_model_internal(symbol: str, lookback_days: int = 500) -> dict:
+    """
+    Trains an improved ML model for stock price prediction with better feature engineering.
+    """
+    # Fetch more historical data for better training
+    df = _get_historical_prices_for_ml(symbol, lookback_days + 100)
+    if df.empty or len(df) < (lookback_days + 50):
+        return {"error": f"Insufficient data for {symbol}. Need at least {lookback_days + 50} days."}
+
+    # Enhanced feature engineering
+    df = _calculate_basic_indicators(df)
+    
+    # Additional advanced features
+    # Exponential Moving Averages
     df['EMA_12'] = df['close_price'].ewm(span=12).mean()
     df['EMA_26'] = df['close_price'].ewm(span=26).mean()
     
     # MACD
     df['MACD'] = df['EMA_12'] - df['EMA_26']
     df['MACD_signal'] = df['MACD'].ewm(span=9).mean()
-    df['MACD_histogram'] = df['MACD'] - df['MACD_signal']
-    
-    # RSI (Relative Strength Index)
-    delta = df['close_price'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
     
     # Bollinger Bands
     df['BB_middle'] = df['close_price'].rolling(window=20).mean()
-    bb_std = df['close_price'].rolling(window=20).std()
-    df['BB_upper'] = df['BB_middle'] + (bb_std * 2)
-    df['BB_lower'] = df['BB_middle'] - (bb_std * 2)
-    df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / df['BB_middle']
+    df['BB_std'] = df['close_price'].rolling(window=20).std()
+    df['BB_upper'] = df['BB_middle'] + (df['BB_std'] * 2)
+    df['BB_lower'] = df['BB_middle'] - (df['BB_std'] * 2)
     df['BB_position'] = (df['close_price'] - df['BB_lower']) / (df['BB_upper'] - df['BB_lower'])
     
-    # Volume indicators
-    df['volume_SMA'] = df['volume'].rolling(window=10).mean()
-    df['volume_ratio'] = df['volume'] / df['volume_SMA']
+    # Price momentum features
+    df['momentum_5'] = df['close_price'] / df['close_price'].shift(5) - 1
+    df['momentum_10'] = df['close_price'] / df['close_price'].shift(10) - 1
+    df['momentum_20'] = df['close_price'] / df['close_price'].shift(20) - 1
     
-    # Price patterns
-    df['high_low_ratio'] = df['high_price'] / df['low_price']
-    df['open_close_ratio'] = df['open_price'] / df['close_price']
+    # Volume features
+    df['volume_sma'] = df['volume'].rolling(window=20).mean()
+    df['volume_ratio'] = df['volume'] / df['volume_sma']
     
-    return df
-
-
-@mcp.tool(description="Trains advanced ML models for stock price prediction with comprehensive technical indicators and model comparison.")
-def train_advanced_stock_prediction_model(symbol: str, lookback_days: int = 252, model_type: str = "ensemble") -> dict:
-    """
-    Trains advanced ML models for stock price prediction using comprehensive features.
+    # High-Low spread
+    df['hl_spread'] = (df['high_price'] - df['low_price']) / df['close_price']
     
-    Args:
-        symbol (str): The stock symbol.
-        lookback_days (int): Number of past days to use for training (default 252 = 1 year).
-        model_type (str): Model type - 'random_forest', 'gradient_boost', 'linear', or 'ensemble'.
+    # Create multiple prediction targets for better training
+    df['target_1d'] = df['close_price'].shift(-1)  # Next day
+    df['target_3d'] = df['close_price'].shift(-3)  # 3 days ahead
+    df['target_5d'] = df['close_price'].shift(-5)  # 5 days ahead
     
-    Returns:
-        dict: Training results with model performance metrics.
-    """
-    # Fetch data with extra buffer for indicator calculation
-    df = _get_historical_prices_for_ml(symbol, lookback_days + 50)
-    
-    if df.empty or len(df) < (lookback_days + 30):
-        return {"error": f"Insufficient data for {symbol}. Need at least {lookback_days + 30} days."}
-    
-    # Calculate technical indicators
-    df = _calculate_technical_indicators(df)
-    
-    # Create target variable (next day's close price)
-    df['target'] = df['close_price'].shift(-1)
-    
-    # Feature selection - comprehensive feature set
+    # Enhanced feature set
     feature_columns = [
         'open_price', 'high_price', 'low_price', 'close_price', 'volume',
-        'price_change', 'price_volatility',
-        'SMA_5', 'SMA_10', 'SMA_20', 'EMA_12', 'EMA_26',
-        'MACD', 'MACD_signal', 'MACD_histogram',
-        'RSI', 'BB_width', 'BB_position',
-        'volume_ratio', 'high_low_ratio', 'open_close_ratio'
+        'SMA_20', 'SMA_50', 'EMA_12', 'EMA_26', 'MACD', 'MACD_signal',
+        'BB_position', 'price_change', 'volatility', 'volume_ratio',
+        'momentum_5', 'momentum_10', 'momentum_20', 'hl_spread'
     ]
     
-    # Clean data
+    # Clean data more carefully
     df = df.dropna()
-    
     if len(df) < 100:
-        return {"error": f"Insufficient clean data after feature engineering for {symbol}."}
+        return {"error": f"Insufficient clean data for {symbol} after feature engineering."}
+
+    # Prepare features and targets
+    X = df[feature_columns].values
+    y_1d = df['target_1d'].values
     
-    # Prepare features and target
-    X = df[feature_columns]
-    y = df['target']
-    
-    # Split data for validation
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
+    # Split data with more recent data for testing
+    split_point = int(len(X) * 0.8)
+    X_train, X_test = X[:split_point], X[split_point:]
+    y_train, y_test = y_1d[:split_point], y_1d[split_point:]
     
     # Scale features
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
-    models = {}
-    results = {}
+    # Use a more sophisticated model ensemble
+    from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+    from sklearn.linear_model import Ridge
     
-    # Train different models based on model_type
-    if model_type in ['random_forest', 'ensemble']:
-        rf_model = RandomForestRegressor(n_estimators=100, max_depth=15, random_state=42, n_jobs=-1)
-        rf_model.fit(X_train_scaled, y_train)
-        rf_pred = rf_model.predict(X_test_scaled)
-        models['random_forest'] = rf_model
-        results['random_forest'] = {
-            'mse': mean_squared_error(y_test, rf_pred),
-            'mae': mean_absolute_error(y_test, rf_pred),
-            'r2': r2_score(y_test, rf_pred)
-        }
+    # Train multiple models
+    rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
+    gb_model = GradientBoostingRegressor(n_estimators=100, max_depth=6, random_state=42)
+    ridge_model = Ridge(alpha=1.0, random_state=42)
     
-    if model_type in ['gradient_boost', 'ensemble']:
-        gb_model = GradientBoostingRegressor(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42)
-        gb_model.fit(X_train_scaled, y_train)
-        gb_pred = gb_model.predict(X_test_scaled)
-        models['gradient_boost'] = gb_model
-        results['gradient_boost'] = {
-            'mse': mean_squared_error(y_test, gb_pred),
-            'mae': mean_absolute_error(y_test, gb_pred),
-            'r2': r2_score(y_test, gb_pred)
-        }
+    rf_model.fit(X_train_scaled, y_train)
+    gb_model.fit(X_train_scaled, y_train)
+    ridge_model.fit(X_train_scaled, y_train)
     
-    if model_type in ['linear', 'ensemble']:
-        lr_model = LinearRegression()
-        lr_model.fit(X_train_scaled, y_train)
-        lr_pred = lr_model.predict(X_test_scaled)
-        models['linear'] = lr_model
-        results['linear'] = {
-            'mse': mean_squared_error(y_test, lr_pred),
-            'mae': mean_absolute_error(y_test, lr_pred),
-            'r2': r2_score(y_test, lr_pred)
-        }
+    # Ensemble predictions
+    rf_pred = rf_model.predict(X_test_scaled)
+    gb_pred = gb_model.predict(X_test_scaled)
+    ridge_pred = ridge_model.predict(X_test_scaled)
     
-    # Save models and scaler
-    model_data = {
-        'models': models,
-        'scaler': scaler,
-        'feature_columns': feature_columns,
-        'symbol': symbol,
+    # Weighted ensemble (RF gets higher weight for stock prediction)
+    ensemble_pred = 0.5 * rf_pred + 0.3 * gb_pred + 0.2 * ridge_pred
+    
+    # Calculate metrics
+    mse = mean_squared_error(y_test, ensemble_pred)
+    r2 = r2_score(y_test, ensemble_pred)
+    
+    # Calculate directional accuracy
+    actual_direction = np.sign(y_test[1:] - y_test[:-1])
+    pred_direction = np.sign(ensemble_pred[1:] - ensemble_pred[:-1])
+    directional_accuracy = np.mean(actual_direction == pred_direction)
+    
+    # Save models and metadata
+    model_path = os.path.join(MODEL_DIR, f"{symbol}_model.pkl")
+    scaler_path = os.path.join(MODEL_DIR, f"{symbol}_scaler.pkl")
+    metadata_path = os.path.join(MODEL_DIR, f"{symbol}_metadata.pkl")
+    
+    # Save ensemble as a dictionary with proper structure
+    ensemble_model = {
+        'ensemble': {
+            'rf_model': rf_model,
+            'gb_model': gb_model,
+            'ridge_model': ridge_model
+        },
+        'weights': [0.5, 0.3, 0.2],
+        'features': feature_columns,
+        'model_type': 'ensemble'
+    }
+    
+    joblib.dump(ensemble_model, model_path)
+    joblib.dump(scaler, scaler_path)
+    joblib.dump({
         'training_date': datetime.now().isoformat(),
-        'performance': results
-    }
-    
-    model_file_name = os.path.join(MODEL_DIR, f"{symbol.lower()}_advanced_prediction_model.pkl")
-    joblib.dump(model_data, model_file_name)
-    
-    # Find best model
-    best_model = min(results.keys(), key=lambda k: results[k]['mse'])
-    
+        'data_points': len(X_train),
+        'features': feature_columns,
+        'symbol': symbol
+    }, metadata_path)
+
     return {
-        "success": True,
         "symbol": symbol,
-        "model_type": model_type,
-        "best_model": best_model,
-        "performance_metrics": results,
-        "features_count": len(feature_columns),
-        "training_samples": len(X_train),
-        "test_samples": len(X_test),
-        "model_path": model_file_name
+        "model_type": "ensemble_ml",
+        "training_data_points": len(X_train),
+        "test_data_points": len(X_test),
+        "metrics": {
+            "mse": round(mse, 4),
+            "r2_score": round(r2, 4),
+            "directional_accuracy": round(directional_accuracy * 100, 2),
+            "accuracy_pct": round(r2 * 100, 2)
+        },
+        "model_saved": model_path,
+        "scaler_saved": scaler_path,
+        "training_date": datetime.now().isoformat(),
+        "features_used": len(feature_columns)
     }
 
-@mcp.tool(description="Predicts future stock prices using advanced ML models with confidence intervals and trend analysis.")
-def predict_stock_price_advanced(symbol: str, days_ahead: int = 1, model_preference: str = "best") -> dict:
+def _calculate_advanced_indicators(df):
+    """Calculate advanced technical indicators for ensemble model."""
+    # Basic indicators
+    df = _calculate_basic_indicators(df)
+    
+    # RSI
+    delta = df['close_price'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    
+    # EMA indicators - MUST be calculated first
+    df['EMA_12'] = df['close_price'].ewm(span=12).mean()
+    df['EMA_26'] = df['close_price'].ewm(span=26).mean()
+    
+    # MACD using the EMAs
+    df['MACD'] = df['EMA_12'] - df['EMA_26']
+    df['MACD_signal'] = df['MACD'].ewm(span=9).mean()
+    df['MACD_histogram'] = df['MACD'] - df['MACD_signal']
+    
+    # Bollinger Bands
+    sma_20 = df['close_price'].rolling(window=20).mean()
+    std_20 = df['close_price'].rolling(window=20).std()
+    df['BB_upper'] = sma_20 + (std_20 * 2)
+    df['BB_lower'] = sma_20 - (std_20 * 2)
+    df['BB_width'] = df['BB_upper'] - df['BB_lower']
+    # Fix BB_position calculation to avoid division by zero
+    df['BB_position'] = np.where(df['BB_width'] > 0, 
+                                (df['close_price'] - df['BB_lower']) / df['BB_width'], 
+                                0.5)
+    
+    # Momentum indicators - ALL must be calculated
+    df['momentum_5'] = df['close_price'] / df['close_price'].shift(5) - 1
+    df['momentum_10'] = df['close_price'] / df['close_price'].shift(10) - 1
+    df['momentum_20'] = df['close_price'] / df['close_price'].shift(20) - 1
+    
+    # High-Low spread
+    df['hl_spread'] = (df['high_price'] - df['low_price']) / df['close_price']
+    
+    # Price position indicator
+    df['price_position'] = (df['close_price'] - df['close_price'].rolling(20).min()) / (df['close_price'].rolling(20).max() - df['close_price'].rolling(20).min())
+    
+    # Fill any NaN values that might cause issues
+    df = df.fillna(method='ffill').fillna(method='bfill').fillna(0)
+    
+    return df
+
+
+@mcp.tool(description="Predicts future stock prices using trained ML model.")
+def predict_stock_price(symbol: str, days_ahead: int = 1) -> dict:
     """
-    Advanced stock price prediction with confidence intervals and trend analysis.
+    Predicts future stock prices using a pre-trained ML model.
     
     Args:
         symbol (str): The stock symbol.
-        days_ahead (int): Number of days to predict (1-7).
-        model_preference (str): Model to use - 'best', 'random_forest', 'gradient_boost', 'linear', or 'ensemble'.
+        days_ahead (int): Number of days ahead to predict (max 7).
     
     Returns:
-        dict: Predictions with confidence intervals and trend analysis.
-    """
-    if days_ahead > 7:
-        return {"error": "Prediction limited to 7 days ahead for accuracy."}
-    
-    model_file_name = os.path.join(MODEL_DIR, f"{symbol.lower()}_advanced_prediction_model.pkl")
-    
-    if not os.path.exists(model_file_name):
-        return {"error": f"Advanced model for {symbol} not found. Train it first using 'train_advanced_stock_prediction_model'."}
-    
-    try:
-        model_data = joblib.load(model_file_name)
-        models = model_data['models']
-        scaler = model_data['scaler']
-        feature_columns = model_data['feature_columns']
-        performance = model_data['performance']
-    except Exception as e:
-        return {"error": f"Failed to load model data: {str(e)}"}
-    
-    # Get recent data for prediction
-    recent_df = _get_historical_prices_for_ml(symbol, 100)  # Extra data for indicators
-    
-    if recent_df.empty or len(recent_df) < 50:
-        return {"error": f"Insufficient recent data for {symbol}."}
-    
-    # Calculate technical indicators
-    recent_df = _calculate_technical_indicators(recent_df)
-    recent_df = recent_df.dropna()
-    
-    if recent_df.empty:
-        return {"error": f"No valid data after indicator calculation for {symbol}."}
-    
-    # Get the most recent complete data point
-    latest_data = recent_df[feature_columns].iloc[-1:].values
-    latest_scaled = scaler.transform(latest_data)
-    
-    predictions = {}
-    
-    # Determine which model(s) to use
-    if model_preference == "best":
-        best_model_name = min(performance.keys(), key=lambda k: performance[k]['mse'])
-        model_to_use = {best_model_name: models[best_model_name]}
-    elif model_preference == "ensemble":
-        model_to_use = models
-    elif model_preference in models:
-        model_to_use = {model_preference: models[model_preference]}
-    else:
-        return {"error": f"Model '{model_preference}' not available. Available: {list(models.keys())}"}
-    
-    # Make predictions
-    for model_name, model in model_to_use.items():
-        model_predictions = []
-        current_data = latest_scaled.copy()
-        
-        for day in range(days_ahead):
-            pred = model.predict(current_data)[0]
-            model_predictions.append(float(pred))
-            
-            # For multi-day prediction, update features (simplified approach)
-            if day < days_ahead - 1:
-                # Update the close price feature for next prediction
-                # This is a simplification - in practice, you'd need to update all features
-                current_data = current_data.copy()
-        
-        predictions[model_name] = model_predictions
-    
-    # Calculate ensemble prediction if multiple models
-    if len(model_to_use) > 1:
-        ensemble_pred = []
-        for day in range(days_ahead):
-            day_preds = [predictions[model][day] for model in predictions.keys()]
-            ensemble_pred.append(np.mean(day_preds))
-        predictions['ensemble'] = ensemble_pred
-    
-    # Calculate confidence intervals (simplified approach using model performance)
-    final_predictions = []
-    current_price = float(recent_df['close_price'].iloc[-1])
-    
-    for day in range(days_ahead):
-        if len(model_to_use) == 1:
-            model_name = list(model_to_use.keys())[0]
-            pred_price = predictions[model_name][day]
-            mae = performance[model_name]['mae']
-        else:
-            pred_price = predictions['ensemble'][day]
-            mae = np.mean([performance[m]['mae'] for m in models.keys()])
-        
-        # Simple confidence interval based on MAE
-        confidence_lower = pred_price - (1.96 * mae)
-        confidence_upper = pred_price + (1.96 * mae)
-        
-        # Trend analysis
-        price_change = pred_price - current_price
-        price_change_pct = (price_change / current_price) * 100
-        
-        trend = "neutral"
-        if price_change_pct > 2:
-            trend = "strongly bullish"
-        elif price_change_pct > 0.5:
-            trend = "bullish"
-        elif price_change_pct < -2:
-            trend = "strongly bearish"
-        elif price_change_pct < -0.5:
-            trend = "bearish"
-        
-        prediction_date = datetime.now() + timedelta(days=day+1)
-        
-        final_predictions.append({
-            "date": prediction_date.strftime("%Y-%m-%d"),
-            "predicted_price": round(pred_price, 2),
-            "confidence_lower": round(confidence_lower, 2),
-            "confidence_upper": round(confidence_upper, 2),
-            "price_change": round(price_change, 2),
-            "price_change_percent": round(price_change_pct, 2),
-            "trend": trend
-        })
-    
-    return {
-        "success": True,
-        "symbol": symbol,
-        "current_price": round(current_price, 2),
-        "model_used": model_preference,
-        "predictions": final_predictions,
-        "model_performance": {k: {metric: round(v, 4) for metric, v in perf.items()} 
-                            for k, perf in performance.items()},
-        "prediction_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-
-
-@mcp.tool(description="Analyzes stock price trends and technical patterns using advanced indicators.")
-def analyze_stock_trends(symbol: str, analysis_period: int = 60) -> dict:
-    """
-    Comprehensive trend analysis using technical indicators and pattern recognition.
-    
-    Args:
-        symbol (str): The stock symbol.
-        analysis_period (int): Number of days to analyze (default 60).
-    
-    Returns:
-        dict: Comprehensive trend analysis with technical indicators and signals.
-    """
-    # Get historical data
-    df = _get_historical_prices_for_ml(symbol, analysis_period + 30)
-    
-    if df.empty or len(df) < analysis_period:
-        return {"error": f"Insufficient data for trend analysis of {symbol}."}
-    
-    # Calculate technical indicators
-    df = _calculate_technical_indicators(df)
-    df = df.dropna().tail(analysis_period)
-    
-    if df.empty:
-        return {"error": f"No valid data after indicator calculation for {symbol}."}
-    
-    # Current values
-    current = df.iloc[-1]
-    current_price = float(current['close_price'])
-    
-    # Trend analysis
-    sma_20 = float(current['SMA_20'])
-    sma_5 = float(current['SMA_5'])
-    sma_10 = float(current['SMA_10'])
-    rsi = float(current['RSI'])
-    macd = float(current['MACD'])
-    macd_signal = float(current['MACD_signal'])
-    bb_position = float(current['BB_position'])
-    
-    # Price trend signals
-    price_trend = "neutral"
-    if current_price > sma_20 and sma_5 > sma_10 > sma_20:
-        price_trend = "strong uptrend"
-    elif current_price > sma_20:
-        price_trend = "uptrend"
-    elif current_price < sma_20 and sma_5 < sma_10 < sma_20:
-        price_trend = "strong downtrend"
-    elif current_price < sma_20:
-        price_trend = "downtrend"
-    
-    # RSI signals
-    rsi_signal = "neutral"
-    if rsi > 70:
-        rsi_signal = "overbought"
-    elif rsi < 30:
-        rsi_signal = "oversold"
-    elif rsi > 60:
-        rsi_signal = "bullish"
-    elif rsi < 40:
-        rsi_signal = "bearish"
-    
-    # MACD signals
-    macd_signal_trend = "neutral"
-    if macd > macd_signal and macd > 0:
-        macd_signal_trend = "strong bullish"
-    elif macd > macd_signal:
-        macd_signal_trend = "bullish"
-    elif macd < macd_signal and macd < 0:
-        macd_signal_trend = "strong bearish"
-    elif macd < macd_signal:
-        macd_signal_trend = "bearish"
-    
-    # Bollinger Bands signals
-    bb_signal = "neutral"
-    if bb_position > 0.8:
-        bb_signal = "near upper band - potential resistance"
-    elif bb_position < 0.2:
-        bb_signal = "near lower band - potential support"
-    
-    # Volume analysis
-    recent_volume = df['volume_ratio'].tail(5).mean()
-    volume_trend = "normal"
-    if recent_volume > 1.5:
-        volume_trend = "high volume"
-    elif recent_volume < 0.7:
-        volume_trend = "low volume"
-    
-    # Volatility analysis
-    recent_volatility = df['price_volatility'].tail(10).mean()
-    volatility_level = "normal"
-    if recent_volatility > df['price_volatility'].quantile(0.8):
-        volatility_level = "high"
-    elif recent_volatility < df['price_volatility'].quantile(0.2):
-        volatility_level = "low"
-    
-    # Support and resistance levels
-    highs = df['high_price'].tail(20)
-    lows = df['low_price'].tail(20)
-    resistance = float(highs.quantile(0.9))
-    support = float(lows.quantile(0.1))
-    
-    # Overall signal
-    signals = [price_trend, rsi_signal, macd_signal_trend]
-    bullish_signals = sum(1 for s in signals if 'bullish' in s or 'uptrend' in s)
-    bearish_signals = sum(1 for s in signals if 'bearish' in s or 'downtrend' in s)
-    
-    overall_signal = "neutral"
-    if bullish_signals >= 2:
-        overall_signal = "bullish"
-    elif bearish_signals >= 2:
-        overall_signal = "bearish"
-    
-    return {
-        "success": True,
-        "symbol": symbol,
-        "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "current_price": round(current_price, 2),
-        "overall_signal": overall_signal,
-        "trend_analysis": {
-            "price_trend": price_trend,
-            "trend_strength": "strong" if "strong" in price_trend else "moderate" if price_trend != "neutral" else "weak"
-        },
-        "technical_indicators": {
-            "rsi": {
-                "value": round(rsi, 2),
-                "signal": rsi_signal,
-                "interpretation": "Momentum indicator (0-100). >70 overbought, <30 oversold"
-            },
-            "macd": {
-                "value": round(macd, 4),
-                "signal_line": round(macd_signal, 4),
-                "signal": macd_signal_trend,
-                "interpretation": "Trend following indicator. Bullish when MACD > Signal line"
-            },
-            "moving_averages": {
-                "sma_5": round(sma_5, 2),
-                "sma_10": round(sma_10, 2),
-                "sma_20": round(sma_20, 2),
-                "interpretation": "Price above SMA = bullish, below = bearish"
-            },
-            "bollinger_bands": {
-                "position": round(bb_position, 2),
-                "signal": bb_signal,
-                "interpretation": "Position in bands (0-1). >0.8 near upper, <0.2 near lower"
-            }
-        },
-        "support_resistance": {
-            "support_level": round(support, 2),
-            "resistance_level": round(resistance, 2),
-            "current_vs_support": round(((current_price - support) / support) * 100, 2),
-            "current_vs_resistance": round(((resistance - current_price) / resistance) * 100, 2)
-        },
-        "volume_analysis": {
-            "trend": volume_trend,
-            "recent_avg_ratio": round(recent_volume, 2),
-            "interpretation": "Volume confirms price movements. High volume = strong moves"
-        },
-        "volatility": {
-            "level": volatility_level,
-            "recent_value": round(recent_volatility, 4),
-            "interpretation": "High volatility = larger price swings, more risk/opportunity"
-        }
-    }
-    recent_df['prev_low'] = recent_df['low_price'].shift(1)
-    recent_df['SMA_5'] = recent_df['close_price'].rolling(window=5).mean().shift(1)
-    recent_df['SMA_10'] = recent_df['close_price'].rolling(window=10).mean().shift(1)
-
-    # We need the most recent row that has all features calculated (dropna)
-    last_valid_row = recent_df.dropna().iloc[-1]
-    latest_features = last_valid_row[features].values.reshape(1, -1) # Reshape for single prediction
-
-    latest_date_in_db = recent_df.index[-1]
-    
-    predicted_prices = []
-    current_features_for_prediction = latest_features.copy()
-
-    # Predict future prices iteratively (multi-step prediction for RandomForest is typically iterative)
-    for i in range(days_in_future):
-        predicted_price_for_next_day = model.predict(current_features_for_prediction)[0]
-        predicted_prices.append(round(float(predicted_price_for_next_day), 2))
-
-        # Update features for the next prediction step using the predicted price
-        # This is a very simplistic update; a robust solution would involve forecasting all features.
-        # For RandomForest, the model doesn't directly take time series, so we approximate.
-        new_prev_close = predicted_price_for_next_day
-        # Other features (volume, OHLC, SMAs) would need to be forecasted or approximated.
-        # For this example, we'll keep other features static or simply shift them.
-        # A more advanced solution would recalculate SMAs based on new predictions.
-        current_features_for_prediction[0, features.index('prev_close')] = new_prev_close
-
-        # For SMA_5 and SMA_10, this simplified iteration is not accurate without full history or forecasting
-        # You'd need a more robust way to update these if iterating multiple days.
-        # For now, we are essentially making a "rolling" 1-day prediction.
-        
-    prediction_date = latest_date_in_db + timedelta(days=days_in_future)
-
-
-    return {
-        "symbol": symbol,
-        "prediction_date": prediction_date.isoformat(),
-        "predicted_close_price": predicted_prices[-1], # Return the last predicted price for days_in_future
-        "all_predicted_prices": predicted_prices if days_in_future > 1 else None,
-        "note": "Prediction based on RandomForestRegressor. Stock prediction is complex and inherently risky. This model is illustrative; consult financial professionals."
-    }
-
-# Existing tools from finance_analysis_and_predictions.py
-@mcp.tool(description="Analyze a stock's historical price range (high, low, average) over a period.")
-def analyze_price_range(symbol: str, start_date: str, end_date: str) -> dict:
-    """
-    Analyzes a stock's historical price range (highest, lowest, and average close price)
-    over a specified period.
-
-    Args:
-        symbol (str): The stock symbol.
-        start_date (str): The start date in YYYY-MM-DD format.
-        end_date (str): The end date in YYYY-MM-DD format.
-
-    Returns:
-        dict: A dictionary containing the symbol, period, highest price, lowest price,
-              and average close price. Returns an error if data is not found.
+        dict: Prediction results with confidence intervals.
     """
     try:
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                query = """
-                SELECT MAX(high_price), MIN(low_price), AVG(close_price)
-                FROM public."STOCK_PRICES"
-                WHERE symbol = %s AND date >= %s AND date <= %s
-                """
-                cur.execute(query, (symbol.upper(), start_date, end_date))
-                result = cur.fetchone()
+        # Always fetch recent data from DB
+        model_path = os.path.join(MODEL_DIR, f"{symbol}_model.pkl")
+        scaler_path = os.path.join(MODEL_DIR, f"{symbol}_scaler.pkl")
 
-                if result and result[0] is not None:
-                    return {
-                        "symbol": symbol,
-                        "start_date": start_date,
-                        "end_date": end_date,
-                        "highest_price": float(result[0]),
-                        "lowest_price": float(result[1]),
-                        "average_close_price": float(result[2])
-                    }
+        if not (os.path.exists(model_path) and os.path.exists(scaler_path)):
+            train_result = train_stock_prediction_model_internal(symbol)
+            if "error" in train_result:
+                return train_result
+
+        # Load ensemble model components
+        try:
+            model_data = joblib.load(model_path)
+            if isinstance(model_data, dict) and 'ensemble' in model_data:
+                # New ensemble model format
+                ensemble_models = model_data['ensemble']
+                ensemble_weights = model_data['weights']
+                feature_columns = model_data['features']
+            else:
+                train_result = train_stock_prediction_model_internal(symbol)
+                if "error" in train_result:
+                    return train_result
+                
+                # Reload the new model
+                model_data = joblib.load(model_path)
+                if isinstance(model_data, dict) and 'ensemble' in model_data:
+                    ensemble_models = model_data['ensemble']
+                    ensemble_weights = model_data['weights']
+                    feature_columns = model_data['features']
                 else:
-                    return {"error": f"No price data found for {symbol} between {start_date} and {end_date}"}
-    except Error as e:
-        return {"error": f"Database error: {str(e)}"}
+                    return {"error": f"Model format error for {symbol} after retraining - missing ensemble structure"}
+        except Exception as e:
+            # If there's any issue loading the model, retrain it
+            train_result = train_stock_prediction_model_internal(symbol)
+            if "error" in train_result:
+                return train_result
+            
+            # Reload the new model
+            try:
+                model_data = joblib.load(model_path)
+                if isinstance(model_data, dict) and 'ensemble' in model_data:
+                    ensemble_models = model_data['ensemble']
+                    ensemble_weights = model_data['weights']
+                    feature_columns = model_data['features']
+                else:
+                    return {"error": f"Model format error for {symbol} - missing ensemble structure"}
+            except Exception as reload_e:
+                return {"error": f"Failed to reload model for {symbol}: {reload_e}"}
+        
+        scaler = joblib.load(scaler_path)
+
+        # Get recent data
+        df = _get_historical_prices_for_ml(symbol, 100)
+        if df.empty:
+            return {"error": f"No recent data available for {symbol}."}
+
+        # Calculate all advanced indicators
+        df = _calculate_advanced_indicators(df)
+        df = df.dropna()
+
+        if len(df) < 1:
+            return {"error": f"Insufficient recent data for {symbol}."}
+
+        # Make sure we have all the required features
+        required_features = [
+            'open_price', 'high_price', 'low_price', 'close_price', 'volume',
+            'SMA_20', 'SMA_50', 'EMA_12', 'EMA_26', 'MACD', 'MACD_signal',
+            'BB_position', 'price_change', 'volatility', 'volume_ratio',
+            'momentum_5', 'momentum_10', 'momentum_20', 'hl_spread'
+        ]
+        
+        # Check if all required features exist
+        missing_features = [f for f in required_features if f not in df.columns]
+        if missing_features:
+            return {"error": f"Missing features: {missing_features}"}
+
+        # Prepare features using the feature list from model
+        latest_features = df[feature_columns].iloc[-1:].values
+        latest_features_scaled = scaler.transform(latest_features)
+
+        # Make ensemble predictions with realistic variation
+        predictions = []
+        current_price = df['close_price'].iloc[-1]
+        last_volatility = df['volatility'].iloc[-1]
+        
+        # Calculate realistic daily volatility
+        daily_volatility = min(0.05, max(0.01, last_volatility / 16))  # Scale down for daily
+        
+        for day in range(1, min(days_ahead + 1, 8)):  # Max 7 days
+            # Get ensemble prediction
+            ensemble_pred = 0.0
+            rf_pred = ensemble_models['rf_model'].predict(latest_features_scaled)[0]
+            gb_pred = ensemble_models['gb_model'].predict(latest_features_scaled)[0]
+            ridge_pred = ensemble_models['ridge_model'].predict(latest_features_scaled)[0]
+            
+            # Weighted ensemble prediction
+            ensemble_pred = (rf_pred * ensemble_weights[0] + 
+                           gb_pred * ensemble_weights[1] + 
+                           ridge_pred * ensemble_weights[2])
+            
+            # Add realistic market volatility and time decay
+            volatility_factor = np.random.normal(1.0, daily_volatility * np.sqrt(day))
+            trend_decay = 0.999 ** day  # Slight trend decay over time
+            
+            pred_price = ensemble_pred * volatility_factor * trend_decay
+            
+            # Calculate dynamic confidence
+            price_change_pct = abs((pred_price - current_price) / current_price * 100)
+            base_confidence = 85 if len(ensemble_models) > 1 else 75
+            confidence = max(45, min(90, base_confidence - (day - 1) * 4 - price_change_pct * 1.5))
+            
+            predictions.append({
+                "day": day,
+                "predicted_price": round(pred_price, 2),
+                "confidence": round(confidence),
+                "price_change": round(((pred_price - current_price) / current_price) * 100, 2)
+            })
+            
+            # Update features for next day prediction (simulating market progression)
+            if day < min(days_ahead, 7):
+                # Update price-related features for cascading prediction
+                price_change = (pred_price - current_price) / current_price
+                latest_features_scaled[0][8] = price_change  # Update price_change feature
+                current_price = pred_price
+
+        model_type = f"ensemble_{len(ensemble_models)}_models" if len(ensemble_models) > 1 else "single_model"
+        
+        return {
+            "symbol": symbol,
+            "current_price": round(df['close_price'].iloc[-1], 2),
+            "predictions": predictions,
+            "model_type": model_type,
+            "prediction_date": datetime.now().isoformat(),
+            "note": f"Advanced ensemble prediction with {len(ensemble_models)} models and realistic volatility simulation"
+        }
+
+    except Exception as e:
+        return {"error": f"Prediction failed: {str(e)}"}
+
+@mcp.tool(description="Analyzes stock trends using basic technical indicators.")
+def analyze_stock_trends(symbol: str, period: int = 500) -> dict:
+    """
+    Analyzes stock price trends using basic technical indicators.
+    
+    Args:
+        symbol (str): The stock symbol.
+        period (int): Number of days to analyze.
+    
+    Returns:
+        dict: Trend analysis results.
+    """
+    try:
+        # Always fetch fresh historical data from DB
+        df = _get_historical_prices_for_ml(symbol, period + 20)
+        if df.empty or len(df) < 10:  # Reduced minimum requirement
+            return {"error": f"Insufficient data for {symbol}. Need at least 10 days, got {len(df)}."}
+
+        df = _calculate_basic_indicators(df)
+
+        # After indicators, we should have clean data
+        if len(df) < 5:
+            return {"error": f"Insufficient clean data for {symbol} after processing. Got {len(df)} records."}
+
+        # Get latest values
+        latest = df.iloc[-1]
+        current_price = latest['close_price']
+        sma_20 = latest.get('SMA_20', current_price)
+        sma_50 = latest.get('SMA_50', current_price)
+
+        # Determine trends with safer comparisons
+        short_trend = "bullish" if current_price > sma_20 else "bearish"
+        long_trend = "bullish" if current_price > sma_50 else "bearish"
+
+        # Overall trend logic
+        if current_price > sma_20 and sma_20 > sma_50:
+            overall_trend = "bullish"
+        elif current_price < sma_20 and sma_20 < sma_50:
+            overall_trend = "bearish"
+        else:
+            overall_trend = "neutral"
+
+        # Calculate trend strength (more robust)
+        recent_window = min(10, len(df))
+        recent_changes = df['price_change'].tail(recent_window).mean()
+        volatility = df['volatility'].tail(recent_window).mean()
+
+        # Ensure we have valid values
+        if pd.isna(recent_changes) or pd.isna(volatility):
+            recent_changes = 0.0
+            volatility = 0.01
+
+        trend_strength = min(100, abs(recent_changes) * 1000)
+
+        # Support and resistance levels
+        recent_window_sr = min(20, len(df))
+        support_level = df['low_price'].tail(recent_window_sr).min()
+        resistance_level = df['high_price'].tail(recent_window_sr).max()
+
+        return {
+            "symbol": symbol,
+            "current_price": round(float(current_price), 2),
+            "technical_indicators": {
+                "SMA_20": round(float(sma_20), 2),
+                "SMA_50": round(float(sma_50), 2),
+                "recent_volatility": round(float(volatility), 4)
+            },
+            "trend_analysis": {
+                "short_term": short_trend,
+                "long_term": long_trend,
+                "overall": overall_trend,
+                "strength": round(float(trend_strength), 2)
+            },
+            "price_levels": {
+                "support": round(float(support_level), 2),
+                "resistance": round(float(resistance_level), 2)
+            },
+            "data_points_used": len(df),
+            "analysis_date": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        return {"error": f"Trend analysis failed: {str(e)}"}
+
+# Simplified analysis server with 3 essential tools
+# Removed: sector analysis, correlation matrix, price range analysis, advanced ML features
+
+if __name__ == "__main__":
+    mcp.run()

@@ -1,25 +1,13 @@
 """
-Direct Finance API for Frontend Integration (Modular Version)
-Provides real financial data to replace mock data in frontend
-Uses local database with periodic imports to reduce external API calls
-
-This is the main API router that combines all modular endpoints:
-- Core endpoints: Basic market data, stocks, charts, news
-- Advanced endpoints: Portfolio, technical analysis, predictions, calculations
-- Models: All Pydantic models and data structures
+Direct Finance API for Frontend Integration
 """
 
 from fastapi import APIRouter
 from datetime import datetime
 
 # Import modular routers
-try:
-    from .core_endpoints import router as core_router
-    from .advanced_endpoints import router as advanced_router
-except ImportError:
-    # Fallback to absolute imports if relative imports fail
-    from api.core_endpoints import router as core_router
-    from api.advanced_endpoints import router as advanced_router
+from .core_endpoints import router as core_router
+from .advanced_endpoints import router as advanced_router
 
 # Create main router
 router = APIRouter()
