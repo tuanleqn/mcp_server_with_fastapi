@@ -1,295 +1,426 @@
 """
-Finance Calculations Server
+Finance Calculations Server - Technical analysis with automatic symbol validation
 """
-
 import os
 from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
-from datetime import datetime
-from .finance_helpers import (
-    calculate_rsi_helper,
-    calculate_sma_helper,
-    get_historical_prices_helper
-)
 import numpy as np
 import pandas as pd
+from datetime import datetime
+
+# Import from local helpers
+from .finance_helpers import (
+    get_database_connection,
+    get_historical_stock_prices_helper,
+    search_companies_helper,
+    get_stock_prices_dataframe
+)
 
 load_dotenv()
 
 mcp = FastMCP(name="Finance Calculations Server")
 
-
-def calculate_bollinger_bands(prices: pd.Series, period: int = 20, std_dev: int = 2) -> dict:
-    """Calculate Bollinger Bands"""
-    sma = prices.rolling(window=period).mean()
-    std = prices.rolling(window=period).std()
+def validate_symbol_and_get_data(symbol: str, min_days: int = 50):
+    """Validate symbol and get sufficient historical data."""
+    if not symbol or not symbol.strip():
+        return None, "Symbol cannot be empty"
     
-    upper_band = sma + (std * std_dev)
-    lower_band = sma - (std * std_dev)
+    symbol = symbol.strip().upper()
     
-    current_price = prices.iloc[-1]
-    current_upper = upper_band.iloc[-1]
-    current_lower = lower_band.iloc[-1]
-    current_sma = sma.iloc[-1]
-    
-    if current_price > current_upper:
-        position = "above_upper_band"
-        signal = "overbought"
-    elif current_price < current_lower:
-        position = "below_lower_band"
-        signal = "oversold"
-    else:
-        position = "within_bands"
-        signal = "neutral"
-    
-    return {
-        "upper_band": round(float(current_upper), 2),
-        "lower_band": round(float(current_lower), 2),
-        "middle_band": round(float(current_sma), 2),
-        "current_price": round(float(current_price), 2),
-        "position": position,
-        "signal": signal,
-        "band_width": round(float(current_upper - current_lower), 2)
-    }
-
-
-def calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> dict:
-    """Calculate MACD"""
-    ema_fast = prices.ewm(span=fast).mean()
-    ema_slow = prices.ewm(span=slow).mean()
-    
-    macd_line = ema_fast - ema_slow
-    signal_line = macd_line.ewm(span=signal).mean()
-    histogram = macd_line - signal_line
-    
-    current_macd = macd_line.iloc[-1]
-    current_signal = signal_line.iloc[-1]
-    current_histogram = histogram.iloc[-1]
-    
-    if current_macd > current_signal and current_histogram > 0:
-        trend_signal = "bullish"
-    elif current_macd < current_signal and current_histogram < 0:
-        trend_signal = "bearish"
-    else:
-        trend_signal = "neutral"
-    
-    return {
-        "macd": round(float(current_macd), 4),
-        "signal": round(float(current_signal), 4),
-        "histogram": round(float(current_histogram), 4),
-        "trend_signal": trend_signal,
-        "momentum": "increasing" if current_histogram > histogram.iloc[-2] else "decreasing"
-    }
-
-
-@mcp.tool(description="Calculate comprehensive technical analysis")
-def calculate_advanced_technical_analysis(symbol: str, period: int = 100) -> dict:
     try:
-        df = get_historical_prices_helper(symbol, period + 50)
-        if df.empty or len(df) < 50:
+        # Use the reliable DataFrame function from helpers
+        from .finance_helpers import get_stock_prices_dataframe
+        df = get_stock_prices_dataframe(symbol, days=min_days * 2)
+        
+        if df.empty or len(df) < min_days:
+            # Try to search for similar symbols
+            search_result = search_companies_helper(symbol, 3)
+            suggestions = []
+            if search_result.get("success") and search_result.get("companies"):
+                suggestions = [f"{comp['symbol']} - {comp['name']}" for comp in search_result["companies"][:3]]
+            
+            return None, f"Insufficient data for {symbol}. Try: {', '.join(suggestions) if suggestions else 'AAPL, MSFT, SPY'}"
+        
+        return df, None
+        
+    except Exception as e:
+        return None, f"Error getting data for {symbol}: {str(e)}"
+
+@mcp.tool(description="Calculate comprehensive technical analysis for a stock")
+def calculate_advanced_technical_analysis(symbol: str, period: int = 100) -> dict:
+    """
+    Calculate comprehensive technical analysis including RSI, moving averages, Bollinger bands, and MACD.
+    
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL', 'TSLA')
+        period: Number of days for analysis (default 100)
+        
+    Returns:
+        Complete technical analysis with trading signals
+        
+    Example:
+        calculate_advanced_technical_analysis("AAPL", 50)
+    """
+    try:
+        # Validate period
+        if period < 20 or period > 500:
             return {
                 "success": False,
-                "error": f"Insufficient data for technical analysis of {symbol}",
-                "symbol": symbol.upper()
+                "error": "Period must be between 20 and 500 days"
             }
         
-        prices = df['close_price']
-        volumes = df['volume']
+        # Get and validate data
+        df, error = validate_symbol_and_get_data(symbol, period)
+        if error:
+            return {
+                "success": False,
+                "error": error
+            }
+        
+        prices = df['close'].tail(period)
+        
+        # RSI Calculation
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        current_rsi = rsi.iloc[-1]
+        
+        # Moving Averages
+        sma_20 = prices.rolling(window=20).mean()
+        sma_50 = prices.rolling(window=50).mean()
+        ema_12 = prices.ewm(span=12).mean()
+        ema_26 = prices.ewm(span=26).mean()
+        
+        # MACD
+        macd = ema_12 - ema_26
+        signal_line = macd.ewm(span=9).mean()
+        macd_histogram = macd - signal_line
+        
+        # Bollinger Bands
+        bb_period = 20
+        bb_std = 2
+        bb_sma = prices.rolling(window=bb_period).mean()
+        bb_std_dev = prices.rolling(window=bb_period).std()
+        bb_upper = bb_sma + (bb_std_dev * bb_std)
+        bb_lower = bb_sma - (bb_std_dev * bb_std)
+        
         current_price = prices.iloc[-1]
         
-        rsi_result = calculate_rsi_helper(symbol, 14)
-        sma20_result = calculate_sma_helper(symbol, 20)
-        sma50_result = calculate_sma_helper(symbol, 50)
+        # Handle None current_price safely
+        if current_price is None or pd.isna(current_price):
+            current_price = 0.0
         
-        try:
-            bollinger = calculate_bollinger_bands(prices, 20, 2)
-        except Exception as e:
-            bollinger = {"upper_band": 0, "lower_band": 0, "signal": "error"}
-            
-        try:
-            macd = calculate_macd(prices, 12, 26, 9)
-        except Exception as e:
-            macd = {"macd": 0, "signal": 0, "trend": "error"}
-    
-        if rsi_result.get("success"):
-            current_rsi = rsi_result.get("rsi", 0)
-        else:
-            current_rsi = 0
-        
-        if sma20_result.get("success"):
-            current_sma20 = sma20_result.get("sma", current_price)
-        else:
-            current_sma20 = current_price
-            
-        if sma50_result.get("success"):
-            current_sma50 = sma50_result.get("sma", current_price)
-        else:
-            current_sma50 = current_price
-        
-        returns = prices.pct_change().dropna()
-        volatility_daily = returns.std()
-        volatility_annual = volatility_daily * np.sqrt(252) * 100
-        
-        avg_volume = volumes.rolling(window=20).mean().iloc[-1]
-        current_volume = volumes.iloc[-1]
-        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
-        
-        recent_prices = prices.tail(20)
-        resistance = recent_prices.max()
-        support = recent_prices.min()
-        
-        short_trend = "bullish" if current_price > current_sma20 else "bearish"
-        long_trend = "bullish" if current_price > current_sma50 else "bearish"
-        
+        # Trading Signals
         signals = []
+        
+        # RSI Signals
         if current_rsi > 70:
-            signals.append("RSI Overbought")
+            signals.append("RSI indicates overbought condition - potential sell signal")
         elif current_rsi < 30:
-            signals.append("RSI Oversold")
+            signals.append("RSI indicates oversold condition - potential buy signal")
+        else:
+            signals.append("RSI in neutral zone")
         
-        if bollinger.get("position") == "above_upper_band":
-            signals.append("Price Above Bollinger Upper Band")
-        elif bollinger.get("position") == "below_lower_band":
-            signals.append("Price Below Bollinger Lower Band")
+        # Moving Average Signals
+        if current_price > sma_20.iloc[-1] > sma_50.iloc[-1]:
+            signals.append("Bullish trend - price above moving averages")
+        elif current_price < sma_20.iloc[-1] < sma_50.iloc[-1]:
+            signals.append("Bearish trend - price below moving averages")
+        else:
+            signals.append("Mixed signals from moving averages")
         
-        if macd.get("trend_signal") == "bullish":
-            signals.append("MACD Bullish Signal")
-        elif macd.get("trend_signal") == "bearish":
-            signals.append("MACD Bearish Signal")
+        # MACD Signals
+        if macd.iloc[-1] > signal_line.iloc[-1] and macd.iloc[-2] <= signal_line.iloc[-2]:
+            signals.append("MACD bullish crossover - potential buy signal")
+        elif macd.iloc[-1] < signal_line.iloc[-1] and macd.iloc[-2] >= signal_line.iloc[-2]:
+            signals.append("MACD bearish crossover - potential sell signal")
+        
+        # Bollinger Bands Signals
+        if current_price > bb_upper.iloc[-1]:
+            signals.append("Price above upper Bollinger Band - potential overbought")
+        elif current_price < bb_lower.iloc[-1]:
+            signals.append("Price below lower Bollinger Band - potential oversold")
         
         return {
             "success": True,
-            "symbol": symbol.upper(),
-            "current_price": round(float(current_price), 2),
-            "rsi": {
-                "current_rsi": current_rsi,
-                "interpretation": "overbought" if current_rsi > 70 else "oversold" if current_rsi < 30 else "neutral"
-            },
-            "sma": {
-                "sma_20": round(float(current_sma20), 2),
-                "sma_50": round(float(current_sma50), 2)
-            },
-            "bollinger_bands": {
-                "upper_band": bollinger.get("upper_band", 0),
-                "lower_band": bollinger.get("lower_band", 0),
-                "signal": bollinger.get("signal", "neutral")
-            },
-            "macd": {
-                "macd_value": macd.get("macd", 0),
-                "signal_line": macd.get("signal", 0),
-                "signal": macd.get("trend", "neutral")
-            },
-            "basic_indicators": {
-                "rsi_14": current_rsi,
-                "sma_20": round(float(current_sma20), 2),
-                "sma_50": round(float(current_sma50), 2)
-            },
-            "risk_metrics": {
-                "daily_volatility": round(volatility_daily * 100, 2),
-                "annual_volatility": round(volatility_annual, 2),
-                "volume_ratio": round(volume_ratio, 2),
-                "volume_signal": "high" if volume_ratio > 1.5 else "normal" if volume_ratio > 0.5 else "low"
-            },
-            "price_levels": {
-                "current": round(float(current_price), 2),
-                "resistance": round(float(resistance), 2),
-                "support": round(float(support), 2),
-                "distance_to_resistance": round(((resistance - current_price) / current_price) * 100, 2),
-                "distance_to_support": round(((current_price - support) / current_price) * 100, 2)
-            },
-            "trend_analysis": {
-                "short_term": short_trend,
-                "long_term": long_trend,
-                "overall": "bullish" if short_trend == "bullish" and long_trend == "bullish" else "bearish" if short_trend == "bearish" and long_trend == "bearish" else "mixed"
+            "symbol": symbol,
+            "analysis_date": datetime.now().isoformat(),
+            "current_price": round(current_price, 2),
+            "period_analyzed": period,
+            "technical_indicators": {
+                "rsi": {
+                    "current": round(current_rsi, 2),
+                    "signal": "overbought" if current_rsi > 70 else "oversold" if current_rsi < 30 else "neutral"
+                },
+                "moving_averages": {
+                    "sma_20": round(sma_20.iloc[-1], 2),
+                    "sma_50": round(sma_50.iloc[-1], 2),
+                    "price_vs_sma20": "above" if current_price > sma_20.iloc[-1] else "below",
+                    "price_vs_sma50": "above" if current_price > sma_50.iloc[-1] else "below"
+                },
+                "macd": {
+                    "macd_line": round(macd.iloc[-1], 4),
+                    "signal_line": round(signal_line.iloc[-1], 4),
+                    "histogram": round(macd_histogram.iloc[-1], 4),
+                    "trend": "bullish" if macd.iloc[-1] > signal_line.iloc[-1] else "bearish"
+                },
+                "bollinger_bands": {
+                    "upper_band": round(bb_upper.iloc[-1], 2),
+                    "middle_band": round(bb_sma.iloc[-1], 2),
+                    "lower_band": round(bb_lower.iloc[-1], 2),
+                    "position": "above_upper" if current_price > bb_upper.iloc[-1] 
+                               else "below_lower" if current_price < bb_lower.iloc[-1] 
+                               else "within_bands"
+                }
             },
             "trading_signals": signals,
-            "analysis_date": datetime.now().isoformat()
+            "overall_sentiment": "bullish" if len([s for s in signals if "buy" in s.lower() or "bullish" in s.lower()]) > len([s for s in signals if "sell" in s.lower() or "bearish" in s.lower()]) else "bearish" if len([s for s in signals if "sell" in s.lower() or "bearish" in s.lower()]) > 0 else "neutral"
         }
-    
+        
     except Exception as e:
         return {
             "success": False,
-            "error": f"Technical analysis failed: {str(e)}",
-            "symbol": symbol.upper()
+            "error": f"Error calculating technical analysis: {str(e)}"
         }
 
-
-@mcp.tool(description="Calculate financial ratios from price data")
-def calculate_financial_ratios(symbol: str, period: int = 252) -> dict:
-    df = get_historical_prices_helper(symbol, period + 10)
-    if df.empty or len(df) < 50:
+@mcp.tool(description="Calculate financial ratios and compare with market")
+def calculate_financial_ratios(symbol: str, comparison_period: int = 252, period: int = None) -> dict:
+    """
+    Calculate financial ratios and performance metrics.
+    
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL', 'MSFT')
+        comparison_period: Days for ratio calculation (default 252 - 1 year)
+        
+    Returns:
+        Financial ratios and performance comparison
+        
+    Example:
+        calculate_financial_ratios("AAPL", 180)
+    """
+    try:
+        # Handle period parameter as alias for comparison_period
+        if period is not None:
+            comparison_period = period
+            
+        # Get and validate data
+        df, error = validate_symbol_and_get_data(symbol, comparison_period)
+        if error:
+            return {
+                "success": False,
+                "error": error
+            }
+        
+        prices = df['close'].tail(comparison_period)
+        volumes = df['volume'].tail(comparison_period)
+        
+        # Calculate returns
+        returns = prices.pct_change().dropna()
+        
+        if len(returns) < 30:
+            return {
+                "success": False,
+                "error": "Insufficient data for ratio calculations"
+            }
+        
+        # Performance Metrics
+        total_return = (prices.iloc[-1] / prices.iloc[0] - 1) * 100
+        annual_return = ((prices.iloc[-1] / prices.iloc[0]) ** (252 / len(prices)) - 1) * 100
+        volatility = returns.std() * np.sqrt(252) * 100
+        
+        # Risk Metrics
+        negative_returns = returns[returns < 0]
+        downside_deviation = negative_returns.std() * np.sqrt(252) * 100 if len(negative_returns) > 0 else 0
+        
+        # Sharpe Ratio (assuming risk-free rate of 2%)
+        risk_free_rate = 2.0
+        sharpe_ratio = (annual_return - risk_free_rate) / volatility if volatility > 0 else 0
+        
+        # Maximum Drawdown
+        cumulative = (1 + returns).cumprod()
+        running_max = cumulative.expanding().max()
+        drawdown = (cumulative - running_max) / running_max
+        max_drawdown = drawdown.min() * 100
+        
+        # Value at Risk (95% confidence)
+        var_95 = np.percentile(returns, 5) * 100
+        
+        # Trading Volume Analysis
+        avg_volume = volumes.mean()
+        volume_trend = "increasing" if volumes.tail(20).mean() > volumes.head(20).mean() else "decreasing"
+        
+        return {
+            "success": True,
+            "symbol": symbol,
+            "analysis_date": datetime.now().isoformat(),
+            "period_days": len(prices),
+            "performance_metrics": {
+                "total_return_percent": round(total_return, 2),
+                "annualized_return_percent": round(annual_return, 2),
+                "volatility_percent": round(volatility, 2),
+                "sharpe_ratio": round(sharpe_ratio, 3)
+            },
+            "risk_metrics": {
+                "maximum_drawdown_percent": round(abs(max_drawdown), 2),
+                "value_at_risk_95_percent": round(abs(var_95), 2),
+                "downside_deviation_percent": round(downside_deviation, 2),
+                "risk_level": "high" if volatility > 30 else "medium" if volatility > 20 else "low"
+            },
+            "trading_metrics": {
+                "average_daily_volume": int(avg_volume),
+                "volume_trend": volume_trend,
+                "liquidity_score": "high" if avg_volume > 1000000 else "medium" if avg_volume > 100000 else "low"
+            },
+            "comparison_benchmarks": {
+                "sp500_typical_return": "8-12% annually",
+                "sp500_typical_volatility": "15-20% annually",
+                "performance_vs_market": "outperforming" if annual_return > 10 else "underperforming" if annual_return < 5 else "market_level"
+            }
+        }
+        
+    except Exception as e:
         return {
             "success": False,
-            "error": f"Insufficient data for ratio analysis of {symbol}",
-            "symbol": symbol.upper()
+            "error": f"Error calculating financial ratios: {str(e)}"
         }
-    
-    prices = df['close_price'].astype(float)
-    volumes = df['volume'].astype(float)
-    highs = df['high_price'].astype(float)
-    lows = df['low_price'].astype(float)
-    
-    current_price = float(prices.iloc[-1])
-    
-    price_52w_high = float(highs.max())
-    price_52w_low = float(lows.min())
-    
-    returns = prices.pct_change().dropna()
-    annual_return = float(returns.mean() * 252)
-    
-    volatility = float(returns.std() * np.sqrt(252))
-    sharpe_ratio = float(annual_return / volatility) if volatility > 0 else 0.0
-    
-    price_change_1m = float((prices.iloc[-1] / prices.iloc[-21]) - 1) if len(prices) > 21 else 0.0
-    price_change_3m = float((prices.iloc[-1] / prices.iloc[-63]) - 1) if len(prices) > 63 else 0.0
-    price_change_6m = float((prices.iloc[-1] / prices.iloc[-126]) - 1) if len(prices) > 126 else 0.0
-    
-    avg_volume = float(volumes.mean())
-    volume_trend = "increasing" if float(volumes.tail(10).mean()) > float(volumes.head(10).mean()) else "decreasing"
-    
-    cumulative_returns = (1 + returns).cumprod()
-    rolling_max = cumulative_returns.expanding().max()
-    drawdown = (cumulative_returns - rolling_max) / rolling_max
-    max_drawdown = float(abs(drawdown.min()))
-    
-    positive_returns = returns[returns > 0]
-    win_rate = float(len(positive_returns) / len(returns) * 100) if len(returns) > 0 else 0.0
-    
-    return {
-        "success": True,
-        "symbol": symbol.upper(),
-        "current_price": round(current_price, 2),
-        "annualized_return": round(annual_return * 100, 2),
-        "max_drawdown": round(max_drawdown * 100, 2),
-        "win_rate": round(win_rate, 1),
-        "volatility": round(volatility * 100, 2),
-        "price_ratios": {
-            "price_to_52w_high": round((current_price / price_52w_high), 3),
-            "price_to_52w_low": round((current_price / price_52w_low), 3),
-            "distance_from_high_pct": round(((price_52w_high - current_price) / price_52w_high) * 100, 2),
-            "distance_from_low_pct": round(((current_price - price_52w_low) / price_52w_low) * 100, 2)
-        },
-        "performance_metrics": {
-            "annual_return": round(annual_return * 100, 2),
-            "annual_volatility": round(volatility * 100, 2),
-            "sharpe_ratio": round(sharpe_ratio, 3),
-            "return_to_risk": round(annual_return / volatility, 3) if volatility > 0 else 0
-        },
-        "momentum_indicators": {
-            "1_month_return": round(price_change_1m * 100, 2),
-            "3_month_return": round(price_change_3m * 100, 2),
-            "6_month_return": round(price_change_6m * 100, 2),
-            "momentum_score": round((price_change_1m + price_change_3m + price_change_6m) / 3 * 100, 2)
-        },
-        "volume_analysis": {
-            "average_daily_volume": int(avg_volume),
-            "current_volume": int(volumes.iloc[-1]),
-            "volume_trend": volume_trend,
-            "liquidity_score": "high" if avg_volume > 1000000 else "medium" if avg_volume > 100000 else "low"
-        },
-        "analysis_date": pd.Timestamp.now().isoformat()
-    }
 
+@mcp.tool(description="Calculate portfolio risk metrics and correlation analysis")
+def calculate_portfolio_risk_metrics(symbols: list, weights: list = None, period: int = 252) -> dict:
+    """
+    Calculate comprehensive portfolio risk metrics including correlation matrix,
+    VaR, and diversification ratios.
+    
+    Args:
+        symbols: List of stock symbols
+        weights: Optional list of weights (if not provided, equal weights assumed)
+        
+    Returns:
+        Portfolio risk metrics and analysis
+    """
+    try:
+        if not symbols:
+            return {
+                "success": False,
+                "error": "Symbols list cannot be empty"
+            }
+        
+        # Default to equal weights if not provided
+        if weights is None:
+            weights = [1.0/len(symbols)] * len(symbols)
+        elif len(weights) != len(symbols):
+            return {
+                "success": False,
+                "error": "Weights and symbols must have same length"
+            }
+        
+        # Normalize weights
+        total_weight = sum(weights)
+        weights = [w/total_weight for w in weights]
+        
+        # Get returns data for all symbols
+        returns_data = {}
+        for symbol in symbols:
+            # Use the working DataFrame function instead
+            df = get_stock_prices_dataframe(symbol, days=max(period, 252))
+            if not df.empty and len(df) > 30:
+                prices = df['close'].tolist()
+                # Calculate returns correctly: (price_t / price_t-1) - 1
+                returns = [(prices[i] / prices[i-1] - 1) for i in range(1, len(prices))]
+                returns_data[symbol] = returns[-period:] if len(returns) > period else returns
+        
+        if len(returns_data) < 2:
+            return {
+                "success": False,
+                "error": "Need at least 2 valid symbols with price data"
+            }
+        
+        # Calculate correlation matrix
+        import numpy as np
+        symbols_with_data = list(returns_data.keys())
+        n_assets = len(symbols_with_data)
+        correlation_matrix = np.eye(n_assets)
+        
+        for i in range(n_assets):
+            for j in range(i+1, n_assets):
+                returns1 = returns_data[symbols_with_data[i]]
+                returns2 = returns_data[symbols_with_data[j]]
+                min_len = min(len(returns1), len(returns2))
+                r1, r2 = returns1[:min_len], returns2[:min_len]
+                
+                if min_len > 10:
+                    corr = np.corrcoef(r1, r2)[0, 1]
+                    if not np.isnan(corr):
+                        correlation_matrix[i][j] = corr
+                        correlation_matrix[j][i] = corr
+        
+        # Portfolio volatility and return calculation
+        portfolio_returns = []
+        portfolio_cumulative_return = 0
+        max_len = max(len(returns_data[s]) for s in symbols_with_data) if symbols_with_data else 0
+        
+        for t in range(min(100, max_len)):
+            portfolio_return = 0
+            for i, symbol in enumerate(symbols_with_data):
+                if symbol in symbols:
+                    weight_idx = symbols.index(symbol)
+                    if t < len(returns_data[symbol]):
+                        portfolio_return += weights[weight_idx] * returns_data[symbol][t]
+            portfolio_returns.append(portfolio_return)
+        
+        # Calculate annualized portfolio return
+        if portfolio_returns:
+            portfolio_vol = np.std(portfolio_returns) * np.sqrt(252)
+            portfolio_mean_return = np.mean(portfolio_returns)
+            portfolio_annual_return = portfolio_mean_return * 252  # Annualize
+            
+            # Calculate Sharpe ratio (assuming 2% risk-free rate)
+            risk_free_rate = 0.02
+            sharpe_ratio = (portfolio_annual_return - risk_free_rate) / portfolio_vol if portfolio_vol > 0 else 0
+        else:
+            portfolio_vol = 0
+            portfolio_annual_return = 0
+            sharpe_ratio = 0
+        
+        # Value at Risk (95% confidence)
+        if portfolio_returns:
+            portfolio_returns_sorted = sorted(portfolio_returns)
+            var_95 = portfolio_returns_sorted[int(0.05 * len(portfolio_returns_sorted))]
+            var_95_annual = var_95 * np.sqrt(252)
+        else:
+            var_95_annual = 0
+        
+        return {
+            "success": True,
+            "portfolio_composition": [
+                {"symbol": symbols[i], "weight_percent": weights[i] * 100} 
+                for i in range(len(symbols))
+            ],
+            "portfolio_metrics": {
+                "annualized_return_percent": round(portfolio_annual_return * 100, 2),
+                "sharpe_ratio": round(sharpe_ratio, 3)
+            },
+            "risk_metrics": {
+                "portfolio_volatility_annual": round(portfolio_vol * 100, 2),
+                "value_at_risk_95": round(abs(var_95_annual) * 100, 2),
+                "number_of_assets": len(symbols),
+                "diversification_ratio": round(1 - np.mean(correlation_matrix), 3)
+            },
+            "correlation_analysis": {
+                "average_correlation": round(np.mean(correlation_matrix[correlation_matrix != 1]), 3),
+                "max_correlation": round(np.max(correlation_matrix[correlation_matrix != 1]), 3),
+                "min_correlation": round(np.min(correlation_matrix[correlation_matrix != 1]), 3)
+            },
+            "symbols_analyzed": symbols_with_data,
+            "analysis_period": f"{min(100, max_len)} trading days"
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Error calculating portfolio risk metrics: {str(e)}"
+        }
 
 if __name__ == "__main__":
     mcp.run()

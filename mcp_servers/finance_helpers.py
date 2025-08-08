@@ -41,6 +41,14 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 # DATABASE HELPER FUNCTIONS
 # ============================================================================
 
+def get_database_connection():
+    """Get database connection"""
+    try:
+        return psycopg2.connect(DB_URI)
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        return None
+
 def get_company_info_helper(symbol: str) -> dict:
     """Get company information from database"""
     try:
@@ -76,6 +84,16 @@ def search_companies_helper(query: str, limit: int = 10) -> dict:
     try:
         limit = min(limit, 50)
         query_clean = query.strip()
+        
+        # Handle empty query
+        if not query_clean:
+            return {
+                "success": False,
+                "error": "Query cannot be empty",
+                "query": query,
+                "results_found": 0,
+                "companies": []
+            }
         
         with psycopg2.connect(DB_URI) as conn:
             with conn.cursor() as cur:
@@ -582,22 +600,31 @@ def predict_price_helper(symbol: str, days_ahead: int = 1) -> dict:
 
         predictions = []
         current_price = df['close_price'].iloc[-1]
+        
+        # Handle None current_price safely
+        if current_price is None or pd.isna(current_price):
+            current_price = 0.0
 
         for day in range(1, min(days_ahead + 1, 8)):
             pred_price = model.predict(latest_features_scaled)[0]
             confidence = min(90, max(50, 80 - (day - 1) * 5))
+            
+            # Avoid division by zero
+            price_change = 0.0
+            if current_price > 0:
+                price_change = round(((pred_price - current_price) / current_price) * 100, 2)
 
             predictions.append({
                 "day": day,
                 "predicted_price": round(pred_price, 2),
                 "confidence": confidence,
-                "price_change": round(((pred_price - current_price) / current_price) * 100, 2)
+                "price_change": price_change
             })
 
         return {
             "success": True,
             "symbol": symbol,
-            "current_price": round(current_price, 2),
+            "current_price": round(float(current_price), 2),
             "predictions": predictions,
             "model_type": "random_forest",
             "prediction_date": datetime.now().isoformat()
@@ -645,6 +672,12 @@ def calculate_sma_helper(symbol: str, period: int = 20) -> dict:
     sma = df['close_price'].rolling(window=period).mean()
     current_sma = sma.iloc[-1]
     current_price = df['close_price'].iloc[-1]
+    
+    # Handle None values safely
+    if current_sma is None or pd.isna(current_sma):
+        current_sma = 0.0
+    if current_price is None or pd.isna(current_price):
+        current_price = 0.0
     
     return {
         "success": True,
@@ -702,3 +735,228 @@ def get_financial_news_helper(query: str = "financial markets", limit: int = 10)
             
     except Exception as e:
         return {"error": f"Failed to fetch news: {str(e)}"}
+
+# ============================================================================
+# STOCK PRICE HELPER FUNCTIONS
+# ============================================================================
+
+def get_historical_stock_prices_helper(symbol: str, start_date: str = None, end_date: str = None, limit: int = 100) -> dict:
+    """Helper function to get historical stock prices"""
+    try:
+        conn = get_database_connection()
+        if not conn:
+            return {"success": False, "error": "Database connection failed"}
+        
+        with conn.cursor() as cur:
+            # Build query with optional date filtering
+            query = """
+                SELECT date, open_price, high_price, low_price, close_price, volume 
+                FROM public.stock_price 
+                WHERE UPPER(symbol) = UPPER(%s)
+            """
+            params = [symbol]
+            
+            if start_date:
+                query += " AND date >= %s"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND date <= %s"
+                params.append(end_date)
+                
+            query += " ORDER BY date DESC LIMIT %s"
+            params.append(limit)
+            
+            cur.execute(query, params)
+            results = cur.fetchall()
+            
+            if not results:
+                return {
+                    "success": False,
+                    "error": f"No price data found for symbol {symbol.upper()}",
+                    "records_returned": 0
+                }
+            
+            # Convert to list of dictionaries
+            prices = []
+            for row in results:
+                prices.append({
+                    "date": row[0].strftime("%Y-%m-%d") if row[0] else None,
+                    "open": float(row[1]) if row[1] else None,
+                    "high": float(row[2]) if row[2] else None,
+                    "low": float(row[3]) if row[3] else None,
+                    "close": float(row[4]) if row[4] else None,
+                    "volume": int(row[5]) if row[5] else None
+                })
+            
+            # Calculate basic statistics
+            closes = [p["close"] for p in prices if p["close"]]
+            if closes:
+                stats = {
+                    "current_price": closes[0],  # Most recent
+                    "period_high": max(closes),
+                    "period_low": min(closes),
+                    "period_average": sum(closes) / len(closes)
+                }
+            else:
+                stats = {}
+            
+            return {
+                "success": True,
+                "symbol": symbol.upper(),
+                "records_returned": len(prices),
+                "date_range": {
+                    "from": prices[-1]["date"] if prices else None,
+                    "to": prices[0]["date"] if prices else None
+                },
+                "statistics": stats,
+                "prices": prices
+            }
+        
+    except Exception as e:
+        return {"success": False, "error": f"Error retrieving prices: {str(e)}"}
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_stock_prices_dataframe(symbol: str, days: int = 100) -> pd.DataFrame:
+    """
+    Get historical stock prices as DataFrame - Uses the same working pattern as ML predictions
+    This is the universal function that works reliably for all MCP servers
+    """
+    try:
+        with psycopg2.connect(DB_URI) as conn:
+            with conn.cursor() as cur:
+                query = """
+                SELECT date, open_price, high_price, low_price, close_price, volume
+                FROM public.stock_price
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT %s
+                """
+                cur.execute(query, (symbol.upper(), days))
+                rows = cur.fetchall()
+
+                if not rows:
+                    return pd.DataFrame()
+
+                df = pd.DataFrame(rows, columns=[
+                    'date', 'open_price', 'high_price', 'low_price', 'close_price', 'volume'
+                ])
+                df['date'] = pd.to_datetime(df['date'])
+                # Convert all numeric columns to float to avoid decimal/float mixing
+                numeric_cols = ['open_price', 'high_price', 'low_price', 'close_price', 'volume']
+                for col in numeric_cols:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').astype(float)
+
+                # Also add simplified column names for backward compatibility
+                df['open'] = df['open_price']
+                df['high'] = df['high_price'] 
+                df['low'] = df['low_price']
+                df['close'] = df['close_price']
+
+                df = df.sort_values('date').reset_index(drop=True)
+                return df
+    except Exception as e:
+        print(f"Error in get_stock_prices_dataframe: {e}")
+        return pd.DataFrame()
+        
+
+def update_stock_prices_helper(symbols: list) -> dict:
+    """Helper function to update stock prices from external sources"""
+    try:
+        if not ALPHA_VANTAGE_KEY:
+            return {
+                "success": False,
+                "error": "External API key not configured",
+                "total_symbols": len(symbols)
+            }
+        
+        updated_count = 0
+        failed_count = 0
+        results = []
+        
+        for symbol in symbols:
+            try:
+                # Fetch data from Alpha Vantage
+                url = "https://www.alphavantage.co/query"
+                params = {
+                    "function": "TIME_SERIES_DAILY",
+                    "symbol": symbol,
+                    "apikey": ALPHA_VANTAGE_KEY,
+                    "outputsize": "compact"
+                }
+                
+                response = requests.get(url, params=params, timeout=30)
+                data = response.json()
+                
+                if "Time Series (Daily)" in data:
+                    time_series = data["Time Series (Daily)"]
+                    
+                    # Get the most recent date
+                    latest_date = max(time_series.keys())
+                    latest_data = time_series[latest_date]
+                    
+                    # Update database
+                    conn = get_database_connection()
+                    if conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                INSERT INTO public.stock_price (symbol, date, open_price, high_price, low_price, close_price, volume)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                ON CONFLICT (symbol, date) DO UPDATE SET
+                                    open_price = EXCLUDED.open_price,
+                                    high_price = EXCLUDED.high_price,
+                                    low_price = EXCLUDED.low_price,
+                                    close_price = EXCLUDED.close_price,
+                                    volume = EXCLUDED.volume
+                            """, (
+                                symbol.upper(),
+                                latest_date,
+                                float(latest_data["1. open"]),
+                                float(latest_data["2. high"]),
+                                float(latest_data["3. low"]),
+                                float(latest_data["4. close"]),
+                                int(latest_data["5. volume"])
+                            ))
+                            conn.commit()
+                        conn.close()
+                    
+                    updated_count += 1
+                    results.append({
+                        "symbol": symbol.upper(),
+                        "status": "updated",
+                        "date": latest_date,
+                        "close": float(latest_data["4. close"])
+                    })
+                else:
+                    failed_count += 1
+                    results.append({
+                        "symbol": symbol.upper(),
+                        "status": "failed",
+                        "error": "No data returned from API"
+                    })
+                    
+            except Exception as e:
+                failed_count += 1
+                results.append({
+                    "symbol": symbol.upper(),
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        return {
+            "success": True,
+            "total_symbols": len(symbols),
+            "updated_count": updated_count,
+            "failed_count": failed_count,
+            "results": results
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Bulk update failed: {str(e)}",
+            "total_symbols": len(symbols)
+        }

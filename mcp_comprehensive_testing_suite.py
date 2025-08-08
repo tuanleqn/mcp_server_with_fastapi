@@ -1,8 +1,14 @@
 """
-🚀 COMPREHENSIVE MCP FINANCE TOOLS TESTING SUITE
-===============================================
+🚀 COMPREHENSIVE MCP FINANCE TOOLS TESTING SUITE - OPTIMIZED EDITION
+================================================================
 Production-ready testing suite for the optimized 6-server MCP architecture
-Tests all 12 essential finance tools with enhanced functionality and reporting
+Tests all 8 essential optimized finance tools with enhanced functionality and reporting
+
+🎯 OPTIMIZATION HIGHLIGHTS:
+- Portfolio: 4 tools → 1 comprehensive equal-weight analysis
+- Sentiment: Enhanced with full news article transparency
+- Stock Data: Fixed days/limit parameter handling & null conversions  
+- Error Handling: Robust price data processing across all servers
 """
 
 import sys
@@ -22,10 +28,10 @@ load_dotenv()
 DB_URI = os.getenv("FINANCE_DB_URI", None)
 
 class ComprehensiveMCPTester:
-    """Comprehensive MCP Finance Tools Testing Suite"""
+    """Comprehensive MCP Finance Tools Testing Suite - Optimized Edition"""
     
     def __init__(self):
-        self.test_symbols = ['AAPL', 'GOOGL', 'SPY', 'GLD', 'BITO', 'USO', 'IWM', 'QQQ']
+        self.test_symbols = ['AAPL', 'GOOGL', 'SPY', 'GLD', 'MSFT', 'TSLA']
         self.results = {}
         self.total_tests = 0
         self.successful_tests = 0
@@ -110,10 +116,12 @@ class ComprehensiveMCPTester:
                 exec_time = round((time.time() - start_time) * 1000, 1)
                 
                 if result and result.get('success'):
-                    records = result.get('data_points', 0)
-                    latest_price = result.get('latest_price', 0)
-                    earliest_date = result.get('earliest_date', 'N/A')
-                    latest_date = result.get('latest_date', 'N/A')
+                    records = result.get('records_returned', 0)
+                    statistics = result.get('statistics', {})
+                    latest_price = statistics.get('current_price', 0)
+                    date_range = result.get('date_range', {})
+                    earliest_date = date_range.get('start', 'N/A')
+                    latest_date = date_range.get('end', 'N/A')
                     self.log_test(f"Historical Data {symbol}", 
                                 f"{records} records, Latest: ${latest_price:.2f}, Range: {earliest_date} to {latest_date} ({exec_time}ms)")
                 else:
@@ -125,12 +133,25 @@ class ComprehensiveMCPTester:
             update_symbols = ['AAPL', 'SPY']
             
             for symbol in update_symbols:
-                result = update_stock_prices(symbol)
+                result = update_stock_prices([symbol])  # Pass as list
                 if result and result.get('success'):
-                    message = result.get('message', 'Update completed')
-                    records_updated = result.get('records_updated', 0)
-                    action = result.get('action', 'unknown')
-                    self.log_test(f"Update {symbol}", f"{message} (Action: {action})")
+                    successful_updates = result.get('successful_updates', 0)
+                    failed_updates = result.get('failed_updates', 0)
+                    results = result.get('results', [])
+                    
+                    if results and len(results) > 0:
+                        symbol_result = results[0]
+                        if symbol_result.get('status') == 'updated':
+                            latest_date = symbol_result.get('date', 'Unknown')
+                            close_price = symbol_result.get('close', 0)
+                            self.log_test(f"Update {symbol}", f"Success: Added data for {latest_date}, Close: ${close_price:.2f}")
+                        elif symbol_result.get('status') == 'failed':
+                            error = symbol_result.get('error', 'Unknown error')
+                            self.log_test(f"Update {symbol}", f"Failed: {error}", False)
+                        else:
+                            self.log_test(f"Update {symbol}", f"Completed: {successful_updates} updated, {failed_updates} failed")
+                    else:
+                        self.log_test(f"Update {symbol}", f"Completed: {successful_updates} updated, {failed_updates} failed")
                 else:
                     error = result.get('error', 'Unknown error') if result else 'No result'
                     self.log_test(f"Update {symbol}", f"Error: {error}", False)
@@ -141,40 +162,77 @@ class ComprehensiveMCPTester:
             self.log_test("Stock Price Server", str(e), False)
 
     def test_company_mcp_server(self):
-        """Test Company MCP Server (finance_db_company)"""
-        print(f"\n🏢 TESTING COMPANY MCP SERVER")
+        """Test Company MCP Server (finance_db_company) - Enhanced Search"""
+        print(f"\n🏢 TESTING COMPANY MCP SERVER (ENHANCED SEARCH)")
         print("=" * 70)
         
         try:
-            from mcp_servers.finance_db_company import search_companies
+            from mcp_servers.finance_helpers import search_companies_helper
             
-            # Test 1: Company Search Functionality
-            print("🧪 Test 1: Company Search and Discovery")
+            # Test 1: Basic Company Search
+            print("🧪 Test 1: Basic Company Search")
             search_tests = [
-                ('Apple', 'Company name search'),
-                ('Alphabet', 'Parent company search'),
-                ('SPY', 'ETF symbol search'),
                 ('AAPL', 'Direct symbol lookup'),
+                ('Apple', 'Company name search'),
+                ('SPY', 'ETF symbol search'),
                 ('Gold', 'Asset type search')
             ]
             
             for query, test_type in search_tests:
-                result = search_companies(query, limit=3)
+                result = search_companies_helper(query, limit=3)
                 if result and result.get('success', True) and not result.get('error'):
+                    results_found = result.get('results_found', 0)
                     companies = result.get('companies', [])
-                    count = len(companies)
                     if companies:
                         top_match = companies[0]
                         name = top_match.get('name', 'Unknown')
                         symbol = top_match.get('symbol', 'Unknown')
                         asset_type = top_match.get('asset_type', 'Unknown')
-                        self.log_test(f"Search '{query}'", 
-                                    f"{count} results, Top: {name} ({symbol}) - {asset_type}")
+                        self.log_test(f"Search '{query}' ({test_type})", 
+                                    f"{results_found} results, Top: {name} ({symbol}) - {asset_type}")
                     else:
-                        self.log_test(f"Search '{query}'", f"{count} results found", count > 0)
+                        self.log_test(f"Search '{query}' ({test_type})", f"{results_found} results found", results_found > 0)
                 else:
                     error = result.get('error', 'No results') if result else 'No result'
-                    self.log_test(f"Search '{query}'", f"Error: {error}", False)
+                    self.log_test(f"Search '{query}' ({test_type})", f"Error: {error}", False)
+            
+            # Test 2: Enhanced Substring Search
+            print("\n🧪 Test 2: Enhanced Substring Search")
+            substring_tests = [
+                ('APP', 'Should find Apple and other APP* symbols'),
+                ('micro', 'Should find Microsoft'),
+                ('tesla', 'Should find Tesla'),
+                ('gold', 'Should find gold-related symbols'),
+                ('tech', 'Should find technology companies')
+            ]
+            
+            for query, description in substring_tests:
+                result = search_companies_helper(query, limit=5)
+                if result and result.get('success', True):
+                    results_found = result.get('results_found', 0)
+                    companies = result.get('companies', [])
+                    if results_found > 0 and companies:
+                        # Show first few matches
+                        matches = []
+                        for company in companies[:3]:
+                            symbol = company.get('symbol', 'Unknown')
+                            name = company.get('name', 'Unknown')[:30]
+                            matches.append(f"{symbol}:{name}")
+                        matches_str = ', '.join(matches)
+                        self.log_test(f"Substring '{query}'", f"{results_found} results: {matches_str}")
+                    else:
+                        self.log_test(f"Substring '{query}'", f"{results_found} results found", results_found > 0)
+                else:
+                    error = result.get('error', 'No results') if result else 'No result'
+                    self.log_test(f"Substring '{query}'", f"Error: {error}", False)
+                    
+            # Test 3: Error Handling
+            print("\n🧪 Test 3: Error Handling")
+            
+            # Test empty query
+            result = search_companies_helper("", limit=5)
+            success = not result.get('success', True) or result.get('results_found', 0) == 0
+            self.log_test("Empty Query Validation", "Correctly handled empty query", success)
                     
         except ImportError as e:
             self.log_test("Company Server Import", str(e), False)
@@ -200,10 +258,15 @@ class ComprehensiveMCPTester:
             for symbol in tech_symbols:
                 result = calculate_advanced_technical_analysis(symbol, period=100)
                 if result and result.get('success'):
-                    rsi = result.get('rsi', {}).get('current_rsi', 0)
-                    bb_signal = result.get('bollinger_bands', {}).get('signal', 'Unknown')
-                    macd_signal = result.get('macd', {}).get('signal', 'Unknown')
-                    sma_20 = result.get('sma', {}).get('sma_20', 0)
+                    technical_indicators = result.get('technical_indicators', {})
+                    rsi_data = technical_indicators.get('rsi', {})
+                    rsi = rsi_data.get('current', 0)
+                    bb_data = technical_indicators.get('bollinger_bands', {})
+                    bb_signal = bb_data.get('position', 'Unknown')
+                    macd_data = technical_indicators.get('macd', {})
+                    macd_signal = macd_data.get('trend', 'Unknown')
+                    sma_data = technical_indicators.get('moving_averages', {})
+                    sma_20 = sma_data.get('sma_20', 0)
                     current_price = result.get('current_price', 0)
                     self.log_test(f"Technical Analysis {symbol}", 
                                 f"Price: ${current_price:.2f}, RSI: {rsi:.2f}, BB: {bb_signal}, MACD: {macd_signal}, SMA20: ${sma_20:.2f}")
@@ -222,10 +285,14 @@ class ComprehensiveMCPTester:
             for symbols, portfolio_name in portfolios:
                 result = calculate_portfolio_risk_metrics(symbols, period=252)
                 if result and result.get('success'):
-                    sharpe = result.get('sharpe_ratio', 0)
-                    var = result.get('value_at_risk_95', 0)
-                    volatility = result.get('portfolio_volatility', 0)
-                    portfolio_return = result.get('portfolio_return', 0)
+                    risk_metrics = result.get('risk_metrics', {})
+                    portfolio_metrics = result.get('portfolio_metrics', {})
+                    
+                    var = risk_metrics.get('value_at_risk_95', 0)
+                    volatility = risk_metrics.get('portfolio_volatility_annual', 0)
+                    portfolio_return = portfolio_metrics.get('annualized_return_percent', 0)
+                    sharpe = portfolio_metrics.get('sharpe_ratio', 0)
+                    
                     self.log_test(f"Portfolio Risk {portfolio_name}", 
                                 f"Return: {portfolio_return:.2f}%, Vol: {volatility:.2f}%, Sharpe: {sharpe:.3f}, VaR95: {var:.2f}%")
                 else:
@@ -239,12 +306,17 @@ class ComprehensiveMCPTester:
             for symbol in ratio_symbols:
                 result = calculate_financial_ratios(symbol, period=252)
                 if result and result.get('success'):
-                    ann_return = result.get('annualized_return', 0)
-                    max_drawdown = result.get('max_drawdown', 0)
-                    win_rate = result.get('win_rate', 0)
-                    volatility = result.get('volatility', 0)
+                    performance_metrics = result.get('performance_metrics', {})
+                    risk_metrics = result.get('risk_metrics', {})
+                    
+                    ann_return = performance_metrics.get('annualized_return_percent', 0)
+                    max_drawdown = risk_metrics.get('maximum_drawdown_percent', 0)
+                    volatility = performance_metrics.get('volatility_percent', 0)
+                    sharpe_ratio = performance_metrics.get('sharpe_ratio', 0)
+                    
+                    # Win rate is not calculated, so we'll skip it for now
                     self.log_test(f"Financial Ratios {symbol}", 
-                                f"Annual Return: {ann_return:.2f}%, Max DD: {max_drawdown:.2f}%, Win Rate: {win_rate:.1f}%, Vol: {volatility:.2f}%")
+                                f"Annual Return: {ann_return:.2f}%, Max DD: {max_drawdown:.2f}%, Vol: {volatility:.2f}%, Sharpe: {sharpe_ratio:.3f}")
                 else:
                     error = result.get('error', 'Unknown error') if result else 'No result'
                     self.log_test(f"Financial Ratios {symbol}", f"Error: {error}", False)
@@ -255,61 +327,71 @@ class ComprehensiveMCPTester:
             self.log_test("Calculations Server", str(e), False)
 
     def test_portfolio_mcp_server(self):
-        """Test Portfolio Optimization MCP Server (finance_portfolio)"""
-        print(f"\n💼 TESTING PORTFOLIO OPTIMIZATION MCP SERVER")
-        print("=" * 70)
+        """Test Portfolio Analysis MCP Server (finance_portfolio) - Optimized Equal-Weight Focus"""
+        print(f"\n💼 TESTING PORTFOLIO ANALYSIS MCP SERVER (OPTIMIZED EQUAL-WEIGHT)")
+        print("=" * 75)
         
         try:
-            from mcp_servers.finance_portfolio import (
-                analyze_portfolio, optimize_equal_risk_portfolio
-            )
+            from mcp_servers.finance_portfolio import analyze_equal_weight_portfolio
             
-            # Test 1: Portfolio Analysis
-            print("🧪 Test 1: Portfolio Analysis")
-            test_portfolios = [
-                (['AAPL', 'SPY', 'GLD'], 'Balanced Portfolio'),
-                (['GOOGL', 'AMZN', 'AAPL'], 'Tech Portfolio'),
-                (['SPY', 'IWM', 'QQQ'], 'Index Portfolio')
+            # Test optimized equal-weight portfolio analysis with comprehensive metrics
+            print("🧪 Test: Comprehensive Equal-Weight Portfolio Analysis")
+            equal_weight_tests = [
+                (['AAPL', 'SPY', 'GOOGL', 'MSFT'], 'Tech + Market Equal Weight'),
+                (['SPY', 'GLD', 'AAPL'], '3-Asset Equal Weight'),
+                (['AAPL', 'MSFT'], '2-Asset Equal Weight')
             ]
             
-            for symbols, portfolio_name in test_portfolios:
-                result = analyze_portfolio(symbols)
+            for symbols, portfolio_name in equal_weight_tests:
+                result = analyze_equal_weight_portfolio(symbols)
                 if result and result.get('success'):
-                    portfolio_return = result.get('portfolio_return', 0)
-                    volatility = result.get('portfolio_volatility', 0)
-                    sharpe = result.get('sharpe_ratio', 0)
-                    holdings = len(result.get('portfolio_composition', []))
-                    self.log_test(f"Portfolio Analysis {portfolio_name}", 
-                                f"Return: {portfolio_return:.2f}%, Vol: {volatility:.2f}%, Sharpe: {sharpe:.3f}, Holdings: {holdings}")
-                else:
-                    error = result.get('error', 'Unknown error') if result else 'No result'
-                    self.log_test(f"Portfolio Analysis {portfolio_name}", f"Error: {error}", False)
-            
-            # Test 2: Risk Parity Optimization
-            print("\n🧪 Test 2: Equal Risk Portfolio Optimization")
-            optimization_tests = [
-                (['AAPL', 'SPY', 'GOOGL'], 'Tech + Market'),
-                (['SPY', 'GLD', 'BITO'], 'Multi-Asset')
-            ]
-            
-            for symbols, opt_name in optimization_tests:
-                result = optimize_equal_risk_portfolio(symbols)
-                if result and result.get('success'):
-                    portfolio_return = result.get('portfolio_return', 0)
-                    volatility = result.get('portfolio_volatility', 0)
-                    sharpe = result.get('sharpe_ratio', 0)
+                    # Test comprehensive output structure
+                    portfolio_type = result.get('portfolio_type', '')
                     composition = result.get('portfolio_composition', [])
-                    if composition:
-                        weights_str = ', '.join([f"{item['symbol']}: {item['weight_percent']:.1f}%" 
-                                               for item in composition[:3]])
-                        self.log_test(f"Risk Parity {opt_name}", 
-                                    f"Return: {portfolio_return:.2f}%, Vol: {volatility:.2f}%, Sharpe: {sharpe:.3f}, Weights: {weights_str}")
-                    else:
-                        self.log_test(f"Risk Parity {opt_name}", 
-                                    f"Return: {portfolio_return:.2f}%, Vol: {volatility:.2f}%, Sharpe: {sharpe:.3f}")
+                    risk_metrics = result.get('risk_metrics', {})
+                    diversification = result.get('diversification', {})
+                    portfolio_summary = result.get('portfolio_summary', {})
+                    
+                    # Extract key metrics
+                    annual_return = risk_metrics.get('annual_return', 0) * 100
+                    annual_volatility = risk_metrics.get('annual_volatility', 0) * 100
+                    sharpe_ratio = risk_metrics.get('sharpe_ratio', 0)
+                    effective_assets = diversification.get('effective_assets', 0)
+                    individual_weight = portfolio_summary.get('individual_weight', 'N/A')
+                    
+                    # Test individual asset details
+                    asset_details = []
+                    for asset in composition:
+                        symbol = asset.get('symbol', '')
+                        weight_percent = asset.get('weight_percent', 0)
+                        asset_return = asset.get('annual_return', 0) * 100
+                        current_price = asset.get('current_price', 0)
+                        asset_details.append(f"{symbol}({weight_percent:.1f}%, ${current_price:.2f})")
+                    
+                    self.log_test(f"Equal Weight {portfolio_name}", 
+                                f"Return: {annual_return:.2f}%, Vol: {annual_volatility:.2f}%, Sharpe: {sharpe_ratio:.3f}, Assets: {effective_assets}, Weight: {individual_weight}")
+                    
+                    if asset_details:
+                        self.log_test(f"  └─ Asset Details", f"{', '.join(asset_details[:3])}")
+                        
                 else:
                     error = result.get('error', 'Unknown error') if result else 'No result'
-                    self.log_test(f"Risk Parity {opt_name}", f"Error: {error}", False)
+                    self.log_test(f"Equal Weight {portfolio_name}", f"Error: {error}", False)
+            
+            # Test input validation for equal-weight analysis
+            print("\n🧪 Test: Input Validation")
+            
+            # Test empty symbols list
+            result = analyze_equal_weight_portfolio([])
+            success = not result.get('success', True)  # Should fail
+            self.log_test("Empty Symbols Validation", "Correctly rejected empty symbols list", success)
+            
+            # Test single symbol portfolio
+            result = analyze_equal_weight_portfolio(['AAPL'])
+            if result and result.get('success'):
+                portfolio_summary = result.get('portfolio_summary', {})
+                individual_weight = portfolio_summary.get('individual_weight', '')
+                self.log_test("Single Asset Portfolio", f"Weight: {individual_weight} (should be 100%)", individual_weight == "100.0%")
                 
         except ImportError as e:
             self.log_test("Portfolio Server Import", str(e), False)
@@ -420,7 +502,7 @@ class ComprehensiveMCPTester:
                     self.log_test(f"News {query_type}", f"Error: {error}", False)
 
             # Test 2: Market Sentiment Analysis
-            print("\n🧪 Test 2: Comprehensive Market Sentiment")
+            print("\n🧪 Test 2: Enhanced Market Sentiment with News Article Transparency")
             sentiment_queries = [
                 ('stock market', 'General Market Sentiment'),
                 ('technology stocks', 'Sector Sentiment')
@@ -438,9 +520,28 @@ class ComprehensiveMCPTester:
                     negative = breakdown.get('negative', 0)
                     neutral = breakdown.get('neutral', 0)
                     
+                    # Test enhanced news_articles transparency
+                    news_articles = result.get('news_articles', [])
+                    article_count = len(news_articles)
+                    
+                    # Verify article details structure
+                    if news_articles:
+                        first_article = news_articles[0]
+                        has_title = bool(first_article.get('title'))
+                        has_source = bool(first_article.get('source'))
+                        has_sentiment_score = first_article.get('sentiment_score') is not None
+                        has_url = bool(first_article.get('url'))
+                        
+                        article_quality = f"Title:{has_title}, Source:{has_source}, Score:{has_sentiment_score}, URL:{has_url}"
+                    else:
+                        article_quality = "No articles in response"
+                    
                     self.log_test(f"Sentiment {sentiment_type}", 
                                 f"Overall: {overall_sentiment} (Score: {sentiment_score:.3f}, Confidence: {confidence:.1f}%), "
                                 f"Articles: {total_articles} (Pos: {positive}, Neg: {negative}, Neu: {neutral})")
+                    
+                    self.log_test(f"  └─ Enhanced News Transparency", 
+                                f"Articles returned: {article_count}, Structure: {article_quality}")
                 else:
                     error = result.get('error', 'Unknown error') if result else 'No result'
                     self.log_test(f"Sentiment {sentiment_type}", f"Error: {error}", False)
@@ -660,16 +761,14 @@ if __name__ == "__main__":
         print("=" * 60)
         
         try:
-            from mcp_servers.finance_db_company import (
-                search_companies
-            )
+            from mcp_servers.finance_helpers import search_companies_helper
             
             # Test 1: Company Search
             print("🧪 Test 1: Company Search")
             test_queries = ['Apple', 'Alphabet', 'SPY']  # Using actual database names
             
             for query in test_queries:
-                result = search_companies(query, limit=3)
+                result = search_companies_helper(query, limit=3)
                 if result and result.get('success', True) and not result.get('error'):
                     companies = result.get('companies', [])
                     count = len(companies)
@@ -685,7 +784,7 @@ if __name__ == "__main__":
             
             # Test 2: Symbol Discovery
             print("\n🧪 Test 2: Symbol Discovery")
-            result = search_companies('AAPL', limit=1)
+            result = search_companies_helper('AAPL', limit=1)
             if result and result.get('success', True) and not result.get('error'):
                 companies = result.get('companies', [])
                 if companies:
@@ -1004,11 +1103,66 @@ if __name__ == "__main__":
 
         print("="*80)
 
+    def test_centralized_helpers(self):
+        """Test the centralized helper functions in mcp_servers/finance_helpers.py"""
+        print(f"\n🔧 TESTING CENTRALIZED HELPER FUNCTIONS")
+        print("=" * 70)
+        
+        try:
+            from mcp_servers.finance_helpers import (
+                search_companies_helper, get_database_connection
+            )
+            
+            # Test 1: Search companies helper with enhanced search
+            print("🧪 Test 1: Search Companies Helper")
+            search_tests = [
+                ("AAPL", "Direct symbol search"),
+                ("APP", "Substring search for Apple"),
+                ("micro", "Substring search for Microsoft"),
+                ("tesla", "Case-insensitive search")
+            ]
+            
+            for query, test_type in search_tests:
+                try:
+                    results = search_companies_helper(query, limit=5)
+                    if isinstance(results, list) and len(results) > 0:
+                        top_result = results[0]
+                        symbol = top_result.get('symbol', 'Unknown')
+                        name = top_result.get('name', 'Unknown')[:30]
+                        self.log_test(f"Helper Search '{query}'", f"{len(results)} results, Top: {symbol} - {name}")
+                    else:
+                        self.log_test(f"Helper Search '{query}'", f"Found {len(results) if isinstance(results, list) else 0} results", len(results) > 0 if isinstance(results, list) else False)
+                except Exception as e:
+                    self.log_test(f"Helper Search '{query}'", f"Error: {str(e)}", False)
+            
+            # Test 2: Database connection
+            print("\n🧪 Test 2: Database Connection Helper")
+            try:
+                conn = get_database_connection()
+                if conn:
+                    # Test connection is working
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT COUNT(*) FROM public.company LIMIT 1")
+                        count = cur.fetchone()[0]
+                    conn.close()
+                    self.log_test("Database Connection Helper", f"Successfully connected, {count} companies available", True)
+                else:
+                    self.log_test("Database Connection Helper", "Connection returned None", False)
+            except Exception as e:
+                self.log_test("Database Connection Helper", f"Error: {str(e)}", False)
+                
+        except ImportError as e:
+            self.log_test("Centralized Helpers Import", f"Import error: {str(e)}", False)
+        except Exception as e:
+            self.log_test("Centralized Helpers", f"Unexpected error: {str(e)}", False)
+
 def main():
-    """Execute comprehensive MCP testing suite"""
-    print("🚀 COMPREHENSIVE MCP FINANCE TOOLS TESTING SUITE")
-    print("Production-ready testing for optimized 6-server architecture")
-    print("="*90)
+    """Execute comprehensive MCP testing suite - Optimized Edition"""
+    print("🚀 COMPREHENSIVE MCP FINANCE TOOLS TESTING SUITE - OPTIMIZED EDITION")
+    print("Production-ready testing for optimized 6-server architecture with 8 essential tools")
+    print("="*95)
+    print("🎯 Testing optimizations: Portfolio streamlined, Sentiment enhanced, Robust error handling")
+    print()
     
     tester = ComprehensiveMCPTester()
     
@@ -1017,9 +1171,9 @@ def main():
         tester.test_stock_price_mcp_server()
         tester.test_company_mcp_server()
         tester.test_calculations_mcp_server()
-        tester.test_portfolio_mcp_server()
+        tester.test_portfolio_mcp_server()  # Now tests optimized equal-weight tool
         tester.test_predictions_mcp_server()
-        tester.test_news_insights_mcp_server()
+        tester.test_news_insights_mcp_server()  # Now tests enhanced sentiment with news articles
     else:
         print("❌ Database infrastructure test failed. Cannot proceed with MCP server tests.")
     
