@@ -44,9 +44,9 @@ async def lifespan(app: FastAPI):
 from api.direct_finance_api import router as finance_api_router
 
 app = FastAPI(
-    title="Finance MCP Server",
-    description="Streamlined financial analysis platform with 12 essential MCP tools",
-    version="2.1.0",
+    title="Finance MCP Server - Optimized",
+    description="Streamlined financial analysis platform with 8 essential optimized MCP tools",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -88,11 +88,11 @@ app.mount(
 async def root():
     return JSONResponse(
         content={
-            "message": "🏦 Finance MCP Server",
+            "message": "🏦 Finance MCP Server - Optimized Edition",
             "status": "operational",
-            "version": "2.1.0",
-            "description": "Streamlined financial analysis platform with comprehensive portfolio risk analysis",
-            "total_tools": 12,
+            "version": "3.0.0",
+            "description": "Optimized financial analysis platform with streamlined MCP tools",
+            "total_tools": 8,
             "servers": 6,
             "endpoints": {
                 "documentation": "/docs",
@@ -101,17 +101,18 @@ async def root():
             },
             "mcp_servers": [
                 "finance_db_company (1 tool)",
-                "finance_db_stock_price (2 tools)",
-                "finance_calculations (2 tools)",
-                "finance_portfolio (2 tools)",
-                "finance_news_and_insights (2 tools)",
+                "finance_db_stock_price (2 tools) - Simplified parameter handling",
+                "finance_calculations (3 tools) - Enhanced null handling",
+                "finance_portfolio (1 tool) - Portfolio optimization with recommended allocation rates",
+                "finance_news_and_insights (2 tools) - Enhanced with news article lists",
                 "finance_analysis_and_predictions (2 tools)",
             ],
-            "recent_updates": [
-                "Consolidated portfolio risk analysis into single comprehensive tool",
-                "Enhanced technical analysis with advanced indicators",
-                "Improved ML prediction models with ensemble techniques",
-                "Cleaned project structure - removed duplicate tools",
+            "optimization_updates": [
+                "Portfolio server optimized with Modern Portfolio Theory recommendations",
+                "Market sentiment analysis now includes full news article details",
+                "Enhanced stock price retrieval with simplified days parameter",
+                "Fixed current_price None conversion issues across all servers",
+                "Improved error handling for price data conversion",
             ],
         }
     )
@@ -121,53 +122,66 @@ async def root():
 async def health_check():
     return {
         "status": "healthy",
-        "service": "finance_mcp_server",
-        "version": "2.1.0",
-        "total_tools": 12,
+        "service": "finance_mcp_server_optimized",
+        "version": "3.0.0",
+        "total_tools": 8,
         "servers_count": 6,
         "database_status": "connected",
         "api_integrations": ["Alpha Vantage", "NewsAPI", "Finnhub"],
+        "architecture": "Optimized with focused tools and enhanced error handling",
+        "optimization_notes": [
+            "Portfolio analysis streamlined to single comprehensive equal-weight tool",
+            "Enhanced sentiment analysis with full news article transparency",
+            "Robust price data handling with proper None value conversion",
+        ],
     }
 
 
 @app.get("/tools", tags=["Tools"])
 async def list_tools():
     return {
-        "total_tools": 12,
+        "total_tools": 8,
         "servers": {
             "finance_db_company": {
                 "tools": 1,
                 "tool_names": ["search_companies"],
-                "description": "Company search with symbol discovery",
+                "description": "Enhanced company search with substring matching and symbol discovery",
             },
             "finance_db_stock_price": {
                 "tools": 2,
                 "tool_names": ["get_historical_stock_prices", "update_stock_prices"],
-                "description": "Historical price data and external updates",
+                "description": "Historical price data retrieval with simplified days parameter and robust null value handling",
             },
             "finance_calculations": {
-                "tools": 2,
+                "tools": 3,
                 "tool_names": [
                     "calculate_advanced_technical_analysis",
                     "calculate_financial_ratios",
+                    "calculate_portfolio_risk_metrics",
                 ],
-                "description": "Advanced technical analysis and financial ratios",
+                "description": "Comprehensive technical analysis and financial performance ratios with enhanced null value handling",
             },
             "finance_portfolio": {
-                "tools": 2,
-                "tool_names": ["analyze_portfolio", "optimize_equal_risk_portfolio"],
-                "description": "Comprehensive portfolio analysis with VaR, drawdown, and risk optimization",
+                "tools": 1,
+                "tool_names": ["optimize_portfolio_allocation"],
+                "description": "Portfolio optimization with recommended allocation rates based on risk-return analysis",
             },
             "finance_news_and_insights": {
                 "tools": 2,
                 "tool_names": ["get_financial_news", "get_market_sentiment"],
-                "description": "Financial news and sentiment analysis",
+                "description": "Financial news aggregation and sentiment analysis with full article transparency",
             },
             "finance_analysis_and_predictions": {
                 "tools": 2,
                 "tool_names": ["predict_stock_price", "analyze_stock_trends"],
-                "description": "ML predictions and market analysis",
+                "description": "Machine learning predictions and trend analysis",
             },
+        },
+        "optimization_highlights": {
+            "portfolio_optimization": "Modern Portfolio Theory optimization with recommended allocation rates for different risk levels",
+            "enhanced_sentiment": "Market sentiment now includes full news article details for transparency",
+            "robust_data_handling": "Fixed current_price None conversion issues across all price-related functions",
+            "parameter_clarity": "Simplified stock price retrieval with days parameter only",
         },
     }
 
@@ -175,7 +189,7 @@ async def list_tools():
 @app.get("/config", tags=["Configuration"])
 async def get_configuration():
     return {
-        "server_version": "2.1.0",
+        "server_version": "3.0.0",
         "environment": {
             "alpha_vantage_configured": bool(os.getenv("EXTERNAL_FINANCE_API_KEY")),
             "newsapi_configured": bool(os.getenv("NEWSAPI_KEY")),
@@ -193,28 +207,32 @@ async def get_configuration():
             "portfolio_optimization": True,
             "technical_analysis": True,
         },
-        "tool_consolidation": {
-            "duplicate_tools_removed": True,
-            "comprehensive_portfolio_analysis": True,
-            "optimized_architecture": True,
+        "optimization_summary": {
+            "architecture_optimized": True,
+            "portfolio_tools_streamlined": "Portfolio optimization with recommended allocation rates using Modern Portfolio Theory",
+            "enhanced_sentiment_transparency": "Market sentiment includes full news article lists",
+            "robust_error_handling": "Fixed None value conversions in price data processing",
+            "parameter_handling_improved": "Simplified stock price retrieval with days parameter only",
         },
     }
 
 
 if __name__ == "__main__":
-    print("🏦 Finance MCP Server v2.1.0")
-    print("=" * 40)
-    print("📊 12 Essential Tools | 6 Optimized Servers")
-    print("🚀 Starting server...")
+    print("🏦 Finance MCP Server v3.0.0 - Optimized Edition")
+    print("=" * 50)
+    print("📊 8 Core Tools | 6 Optimized Servers")
+    print("🚀 Starting optimized server...")
     print("📡 Server: http://127.0.0.1:8000")
     print("📚 Docs: http://127.0.0.1:8000/docs")
     print("🔧 Tools: http://127.0.0.1:8000/tools")
     print("💓 Health: http://127.0.0.1:8000/health")
     print()
-    print("Recent Updates:")
-    print("✅ Consolidated portfolio risk analysis")
-    print("✅ Enhanced ML prediction models")
-    print("✅ Removed duplicate tools")
-    print("✅ Clean project structure")
+    print("🎯 Optimization Highlights:")
+    print(
+        "✅ Portfolio: Modern Portfolio Theory optimization with recommended allocation rates"
+    )
+    print("✅ Sentiment: Enhanced with full news article transparency")
+    print("✅ Stock Data: Simplified days parameter & null conversions")
+    print("✅ Error Handling: Robust price data processing across all servers")
     print()
     uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="info")

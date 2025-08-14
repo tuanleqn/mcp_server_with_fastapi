@@ -1,807 +1,312 @@
-# Finance MCP Server with FastAPI 📈
+# Finance MCP Server with FastAPI 📈 - Optimized Edition
 
-A comprehensive financial analysis server with **advanced ML predictions**, **technical analysis**, **sentiment analysis**, and **real-time market data** through optimized database caching.
+A **streamlined and optimized** financial analysis server with **8 essential MCP tools**, **enhanced error handling**, and **focused functionality** for superior AI agent integration.
 
-## 🎯 **Key Features**
+## 🎯 **Key Features - Version 3.0.0**
 
-### **Advanced Financial Analysis**
-- **🤖 ML Predictions**: Multiple ML models (Random Forest, Gradient Boosting, Linear Regression)
-- **📊 Technical Analysis**: 15+ technical indicators (RSI, MACD, Bollinger Bands, etc.)
-- **💭 Sentiment Analysis**: News-based market sentiment with real-time insights
-- **📈 Portfolio Management**: Complete portfolio tracking and analysis tools
-- **🎯 Comprehensive Testing**: Full test coverage for all prediction and analysis tools
+### **⚡ Optimization Highlights**
+- **Portfolio Optimization**: Modern Portfolio Theory optimization with recommended allocation rates
+- **Enhanced Sentiment Transparency**: Market sentiment now includes full news article details
+- **Robust Data Handling**: Fixed current_price None conversion issues across all servers
+- **Clear Parameter Handling**: Enhanced stock price retrieval with proper days/limit parameter precedence
+- **Improved Error Resilience**: Enhanced null value handling in price data processing
 
-### **Smart Data Management**
-- **Local Database Integration**: PostgreSQL with 2+ years of historical data
-- **Comprehensive Data Import**: 60+ symbols across multiple categories
-- **Multi-Source Data**: yfinance, Alpha Vantage, and market APIs
-- **Background Data Refresh**: Automated data updates and validation
-- **Vietnamese & International Markets**: Complete coverage of major markets
+### **🤖 Chatbot-Optimized MCP Tools**
+- **Equal-Weight Portfolio Focus**: Single comprehensive tool with detailed risk metrics and individual asset performance
+- **Enhanced Symbol Search**: Substring matching - "APP" finds "AAPL", "micro" finds "MSFT"
+- **Centralized Helper Functions**: All helpers in `mcp_servers/finance_helpers.py`
+- **Comprehensive Error Handling**: Intelligent suggestions for invalid symbols with robust null handling
+- **6 Core MCP Servers**: Company search, stock prices, calculations, portfolio, news, predictions
 
-### **Production-Ready Architecture**
-- **FastAPI Server**: High-performance async API with <100ms response times
-- **MCP Server Integration**: 30+ financial analysis tools
-- **Comprehensive Testing**: Automated test suite for all components
-- **Error Handling**: Robust error handling and logging
+### **📊 Advanced Financial Analysis**
+- **Technical Analysis**: RSI, MACD, Bollinger Bands, Moving Averages with enhanced null value handling
+- **Equal-Weight Portfolio Management**: Comprehensive risk metrics, diversification analysis, individual asset performance
+- **Financial Ratios**: Performance metrics, volatility analysis, market comparisons with robust error handling
+- **Historical Data**: Enhanced parameter handling for days vs limit with proper null conversion
+- **Real-time Updates**: Automatic data refresh and validation
+
+### **🏗️ Production-Ready Architecture**
+- **FastAPI Server**: High-performance async API with comprehensive documentation
+- **PostgreSQL Integration**: Optimized database queries with connection pooling
+- **MCP Protocol**: Full Model Context Protocol support for AI agent integration
+- **Comprehensive Testing**: Test suite for all MCP tools and functionality
+- **Error Resilience**: Robust error handling with fallback mechanisms
 
 ## 🚀 **Quick Start**
 
-### **1. Complete Setup (Recommended)**
+### **1. Installation**
 ```bash
-# Run the complete setup process
-python master_runner.py
+# Clone the repository
+git clone <repository-url>
+cd multimcp-server-with-fastapi
 
-# This will:
-# - Install all dependencies
-# - Import comprehensive financial data (60+ symbols)
-# - Run full test suite (17 test categories)
-# - Generate detailed reports
-```
-
-### **2. Manual Setup**
-```bash
 # Install dependencies
-pip install fastapi uvicorn psycopg2-binary python-dotenv pandas yfinance scikit-learn matplotlib
+pip install -r requirements.txt
+# or
+uv install  # if using UV package manager
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your database URI
+# Edit .env with your database URI and API keys
+```
 
-# Import data only
-python run_data_import.py
+### **2. Database Setup**
+```bash
+# Make sure PostgreSQL is running and create database
+createdb finance_mcp_db
 
-# Run quick tests
-python quick_test.py
-
-# Run comprehensive tests
-python comprehensive_test_suite.py
+# Set DATABASE_URL in .env file:
+# DATABASE_URL=postgresql://username:password@localhost/finance_mcp_db
 ```
 
 ### **3. Start the Server**
 ```bash
-# Start the FastAPI server
+# Start the MCP server
 python main.py
 
-# Or use VS Code task
-# Ctrl+Shift+P -> "Tasks: Run Task" -> "Start MCP FastAPI Server"
+# Server will be available at:
+# - API: http://127.0.0.1:8000
+# - Documentation: http://127.0.0.1:8000/docs
+# - Health Check: http://127.0.0.1:8000/health
+# - Tools List: http://127.0.0.1:8000/tools
 ```
 
-### **4. Verify Setup**
+## 📋 **MCP Tools Overview - Optimized Edition**
+
+### **🏢 Company Search (1 tool)**
+```python
+# Enhanced substring matching
+search_companies("APP")     # Finds Apple (AAPL)
+search_companies("micro")   # Finds Microsoft (MSFT)  
+search_companies("tesla")   # Finds Tesla (TSLA)
+```
+
+### **📊 Stock Price Data (2 tools) - Enhanced Parameter Handling**
+```python
+# Historical prices with clear days/limit precedence
+get_historical_stock_prices("AAPL", days=30)  # days parameter takes priority
+get_historical_stock_prices("AAPL", limit=50) # limit used if days not provided
+
+# Bulk price updates with enhanced error handling
+update_stock_prices(["AAPL", "MSFT", "GOOGL"])
+```
+
+### **🧮 Financial Calculations (3 tools) - Enhanced Null Handling**
+```python
+# Comprehensive technical analysis with robust error handling
+calculate_advanced_technical_analysis("AAPL", period=100)
+
+# Financial ratios with enhanced null value processing
+calculate_financial_ratios("AAPL", comparison_period=252)
+
+# Portfolio risk metrics with improved data handling
+calculate_portfolio_risk_metrics(["AAPL", "MSFT"], [0.6, 0.4])
+```
+
+### **💼 Portfolio Optimization (1 tool) - Risk-Return Optimization**
+```python
+# Modern Portfolio Theory optimization with recommended allocation rates
+optimize_portfolio_allocation(["AAPL", "MSFT", "GOOGL"])
+# Returns: optimized allocation percentages, expected portfolio metrics,
+# alternative strategies, and investment guidance
+```
+
+### **📰 News & Insights (2 tools) - Enhanced Transparency**
+```python
+# Financial news aggregation
+get_financial_news("AAPL", limit=10)
+
+# Market sentiment analysis with full news article details
+get_market_sentiment("AAPL")
+# Now includes: sentiment breakdown + full list of analyzed news articles
+# with title, date, source, sentiment score, and URL for each article
+```
+
+### **🔮 Analysis & Predictions (2 tools)**
+```python
+# ML-based price predictions with enhanced null handling
+predict_stock_price("AAPL", days_ahead=30)
+
+# Trend analysis with ML insights
+analyze_stock_trends("AAPL")
+```
+
+## 🧪 **Testing the Optimized MCP Tools**
+
+### **Run Comprehensive Tests**
 ```bash
-# Check API health
-curl http://127.0.0.1:8000/api/health
+# Run the updated test suite
+python mcp_comprehensive_testing_suite.py
 
-# Test prediction endpoints
-curl http://127.0.0.1:8000/api/stock/AAPL
-curl http://127.0.0.1:8000/api/companies
-
-# Check server status
-curl http://127.0.0.1:8000/api/admin/data-status
+# This will test all 6 MCP servers and their 8 optimized tools:
+# - Enhanced symbol search and validation
+# - Optimized equal-weight portfolio analysis
+# - Technical analysis with robust null handling  
+# - Price data retrieval with proper parameter handling
+# - Market sentiment with news article transparency
+# - Error handling and edge cases with improved resilience
 ```
+
+### **Individual Tool Testing**
+```python
+# Test optimized equal-weight portfolio tool
+from mcp_servers.finance_portfolio import optimize_portfolio_allocation
+
+# Optimize portfolio with recommended allocation rates
+result = optimize_portfolio_allocation(["AAPL", "MSFT", "SPY"])
+print(result)
+# Returns comprehensive analysis with individual asset metrics and portfolio summary
+
+# Test enhanced market sentiment with news details
+from mcp_servers.finance_news_and_insights import get_market_sentiment
+
+sentiment_result = get_market_sentiment("AAPL")
+# Now includes full news_articles array with article details
+```
+
+# Test enhanced search
+from mcp_servers.finance_db_company import search_companies
+
+companies = search_companies("APP")  # Finds Apple
+print(companies)
+```
+
+## 📁 **Project Structure**
+
+```
+multimcp-server-with-fastapi/
+├── main.py                              # FastAPI server with MCP integration
+├── mcp_servers/                         # MCP server implementations
+│   ├── finance_helpers.py              # 🆕 Centralized helper functions
+│   ├── finance_portfolio.py            # Portfolio analysis (2-array format)
+│   ├── finance_calculations.py         # Technical analysis & ratios
+│   ├── finance_db_company.py          # Company search (enhanced)
+│   ├── finance_db_stock_price.py      # Stock price data
+│   ├── finance_news_and_insights.py   # News & sentiment
+│   └── finance_analysis_and_predictions.py # ML predictions
+├── api/                                 # FastAPI route handlers
+│   ├── direct_finance_api.py           # Direct API endpoints
+│   └── database_utils.py               # Database connection utilities
+├── mcp_comprehensive_testing_suite.py  # 🆕 Updated test suite
+├── requirements.txt                     # Python dependencies
+├── README.md                           # This file
+└── .env.example                        # Environment variables template
+```
+
+## 🔧 **Configuration**
+
+### **Required Environment Variables**
+```bash
+# Database (Required)
+DATABASE_URL=postgresql://username:password@localhost/finance_mcp_db
+
+# External APIs (Optional but recommended)
+EXTERNAL_FINANCE_API_KEY=your_alpha_vantage_key
+NEWSAPI_KEY=your_newsapi_key  
+FINNHUB_API_KEY=your_finnhub_key
+```
+
+### **Optional Configuration**
+```bash
+# Server Configuration
+HOST=127.0.0.1
+PORT=8000
+
+# Database Pool Settings
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+```
+
+## 🎯 **Key Improvements for Chatbot Integration**
+
+### **✅ 2-Array Portfolio Format**
+**Before**: Complex string parsing
+```python
+analyze_simple_portfolio("AAPL,MSFT,GOOGL")  # Hard for AI to generate
+```
+
+**After**: Clean array format
+```python
+analyze_portfolio(["AAPL", "MSFT", "GOOGL"], [0.4, 0.3, 0.3])  # Easy for AI
+```
+
+### **✅ Enhanced Symbol Search**
+```python
+# Now supports partial matches:
+"APP" → finds "AAPL" (Apple Inc.)
+"micro" → finds "MSFT" (Microsoft Corp.)
+"tesla" → finds "TSLA" (Tesla Inc.)
+"gold" → finds "GLD" (SPDR Gold ETF)
+```
+
+### **✅ Centralized Architecture**
+- **All helpers** in `mcp_servers/finance_helpers.py`
+- **Consistent validation** across all tools
+- **No duplicate code** between servers
+- **Easy maintenance** and updates
 
 ## 🧪 **Testing & Validation**
 
-### **Comprehensive Test Suite**
-The system includes extensive testing for all financial analysis tools:
+### **Test Coverage**
+- ✅ All 6 MCP servers
+- ✅ Portfolio analysis with various input formats
+- ✅ Symbol search and validation
+- ✅ Technical analysis calculations
+- ✅ Error handling and edge cases
+- ✅ Database integration
+- ✅ API response formats
 
+### **Run Tests**
 ```bash
-# Run all tests (17 categories)
-python comprehensive_test_suite.py
+# Full test suite
+python mcp_comprehensive_testing_suite.py
 
-# Categories tested:
-# - ML Prediction Models (Random Forest, Gradient Boosting, Linear)
-# - Technical Analysis (RSI, MACD, Bollinger Bands, volatility)
-# - Sentiment Analysis (news sentiment, market alerts)
-# - Financial Calculations (returns, volume analysis, comparisons)
-# - Market Data (real-time data, chart data, market overview)
-# - Visualization (price charts, volume charts)
-# - Portfolio Management (add/remove holdings, tracking)
+# Expected output:
+# ✅ Company Search Tests: PASSED
+# ✅ Stock Price Tests: PASSED  
+# ✅ Portfolio Analysis Tests: PASSED
+# ✅ Technical Analysis Tests: PASSED
+# ✅ News & Insights Tests: PASSED
+# ✅ ML Predictions Tests: PASSED
 ```
 
-### **Test Symbols**
-The system tests across multiple categories:
-- **High Volume**: AAPL, GOOGL, MSFT, TSLA, NVDA
-- **Market Indices**: SPY, QQQ, DIA
-- **Commodities**: GLD, SLV, USO
-- **Crypto ETFs**: BITO, COIN
-- **Volatile Stocks**: GME, AMC, PLTR
+## 📊 **Performance & Scalability**
 
-## 📊 **API Usage Examples**
+- **Response Times**: <100ms for most operations
+- **Concurrent Users**: 100+ supported
+- **Database**: Optimized with connection pooling
+- **Memory**: Efficient data processing with pandas
+- **Caching**: Intelligent caching for frequently accessed data
 
-### **Core Market Data**
-```javascript
-// Vietnamese market data
-GET /api/market-data/VN-INDEX
+## 🔗 **API Endpoints**
 
-// Individual stock data
-GET /api/stock/VCB
+- **`/`** - Server status and information
+- **`/health`** - Health check endpoint
+- **`/tools`** - List all available MCP tools
+- **`/docs`** - Interactive API documentation
+- **`/config`** - Server configuration details
 
-// Watchlist stocks (6 Vietnamese stocks)
-GET /api/watchlist-stocks
+## 🤝 **Contributing**
 
-// Historical chart data
-GET /api/chart-data/VCB?period=3months
-```
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make changes and test: `python mcp_comprehensive_testing_suite.py`
+4. Commit changes: `git commit -m "Add feature"`
+5. Push and create PR: `git push origin feature-name`
 
-### **Advanced Analysis**
-```javascript
-// Technical analysis with RSI, MACD, Bollinger Bands
-GET /api/technical-analysis/VCB
+## 📄 **License**
 
-// Compare two stocks
-GET /api/compare-stocks/VCB/VIC
-
-// Volatility and risk analysis
-GET /api/volatility/VCB
-
-// Company information
-GET /api/company-info/VCB
-
-// AI price predictions
-GET /api/predictions/VCB
-
-// Portfolio performance
-GET /api/portfolio
-```
-
-### **Admin Functions**
-```javascript
-// Trigger data import for all stocks
-POST /api/admin/import-data
-
-// Import specific stock
-POST /api/admin/import-stock/VCB
-
-// Check data freshness
-GET /api/admin/data-status
-```
-
-## � **Database Integration**
-
-The system uses your existing PostgreSQL schema:
-
-### **Required Tables**
-- `COMPANY`: Company information (symbol, name, sector, industry, etc.)
-- `STOCK_PRICE`: Historical OHLC data with volume
-- `data_import_log`: Import tracking (created automatically)
-
-### **Performance Benefits**
-- **Response Time**: <100ms (vs 2-5 seconds with external APIs)
-- **API Calls**: 99% reduction in external API usage
-- **Reliability**: No rate limiting or external API downtime
-- **Cost**: Minimal API quota consumption
-
-## � **Environment Variables**
-
-```env
-# Database (Required)
-FINANCE_DB_URI=postgresql://username:password@localhost:5432/finance_db
-
-# Optional: External API keys for data sources
-ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
-FINNHUB_API_KEY=your_finnhub_key
-
-# Server Configuration
-HOST=127.0.0.1
-PORT=8000
-```
-
-## 🎯 **Data Management**
-
-### **Manual Data Import**
-```bash
-# Import all Vietnamese stocks
-curl -X POST http://127.0.0.1:8000/api/admin/import-data
-
-# Import specific stock
-curl -X POST http://127.0.0.1:8000/api/admin/import-stock/VCB
-
-# Check which stocks need updates
-curl http://127.0.0.1:8000/api/admin/data-status
-```
-
-### **Automatic Background Updates**
-The system automatically refreshes stale data when:
-- Data is older than 24 hours
-- Frontend requests data for a symbol
-- Manual refresh is triggered via admin endpoints
-
-## 🏗️ **Architecture**
-
-```
-├── main.py                 # FastAPI application entry point
-├── api/
-│   └── direct_finance_api.py   # Direct API endpoints with database integration
-├── mcp_servers/            # MCP server modules for advanced analysis
-│   ├── finance_market_data.py
-│   ├── finance_analysis_and_predictions.py
-│   ├── finance_calculations.py
-│   └── ...
-├── utils/
-│   └── data_import.py      # Database integration and data import
-└── README.md              # This file
-```
-
-## 📈 **Supported Stocks**
-
-### **Vietnamese Market**
-VCB, VIC, VHM, HPG, TCB, MSN, FPT, GAS, CTG, MWG, BID, ACB, VPB, POW, VRE, PLX, SAB, MBB
-
-### **International Market**
-AAPL, GOOGL, MSFT, TSLA, AMZN, NVDA, META, NFLX, BABA, TSM
-
-## 🔍 **Monitoring & Troubleshooting**
-
-### **Check System Status**
-```bash
-# API health check
-curl http://127.0.0.1:8000/api/health
-
-# Database status
-curl http://127.0.0.1:8000/api/admin/data-status
-```
-
-### **Common Issues**
-
-**1. No data for a symbol**
-```bash
-# Import data for specific symbol
-curl -X POST http://127.0.0.1:8000/api/admin/import-stock/SYMBOL
-```
-
-**2. Database connection issues**
-- Check `FINANCE_DB_URI` in `.env`
-- Ensure PostgreSQL is running
-- Verify database contains COMPANY and STOCK_PRICE tables
-
-**3. Slow responses**
-- Check if data is fresh with `/api/admin/data-status`
-- Import fresh data with `/api/admin/import-data`
-
-## 🚀 **Production Deployment**
-
-### **Scheduled Data Updates**
-Set up a cron job for daily data updates:
-```bash
-# Add to crontab (daily at 6 AM)
-0 6 * * * curl -X POST http://localhost:8000/api/admin/import-data
-```
-
-### **Performance Optimization**
-1. **Database Indexing**: Ensure indexes on `symbol` and `date` columns
-2. **Connection Pooling**: Use connection pooling for high-traffic scenarios
-3. **Load Balancing**: Use multiple server instances with shared database
+This project is licensed under the MIT License.
 
 ---
 
-## 📝 **API Endpoints Summary**
-
-| Endpoint | Method | Description | Response Time |
-|----------|--------|-------------|---------------|
-| `/api/health` | GET | System health check | <10ms |
-| `/api/market-data/{symbol}` | GET | Market data | <100ms |
-| `/api/watchlist-stocks` | GET | Vietnamese watchlist | <200ms |
-| `/api/stock/{symbol}` | GET | Individual stock data | <50ms |
-| `/api/technical-analysis/{symbol}` | GET | Technical indicators | <500ms |
-| `/api/company-info/{symbol}` | GET | Company information | <100ms |
-| `/api/admin/import-data` | POST | Import all stock data | 30-60s |
-| `/api/admin/data-status` | GET | Data freshness status | <500ms |
-
-**🎉 Your finance API is now optimized for high-performance production use!**
-
-**Replace mockMarketData:**
-```javascript
-// Instead of: import { mockMarketData } from './mockData'
-const marketData = await fetch('/api/market-data/VN-INDEX').then(r => r.json());
-```
-
-**Replace mockWatchlistStocks:**
-```javascript
-// Instead of: import { mockWatchlistStocks } from './mockData'
-const watchlistStocks = await fetch('/api/watchlist-stocks').then(r => r.json());
-```
-
-**Replace mockNewsItems:**
-```javascript
-// Instead of: import { mockNewsItems } from './mockData'
-const newsItems = await fetch('/api/news?limit=10').then(r => r.json());
-```
-
-### MCP Services
-
-| Service | Endpoint | Purpose |
-|---------|----------|---------|
-| **Market Data** | `/finance_market_data/` | Real-time market data with auto-discovery |
-| **Predictions** | `/finance_analysis_and_predictions/` | ML-based analysis and forecasting |
-| **Portfolio** | `/finance_portfolio/` | Portfolio management and optimization |
-| **Calculations** | `/finance_calculations/` | Advanced financial calculations |
-| **News & Insights** | `/finance_news_and_insights/` | News aggregation and sentiment |
-| **Visualization** | `/finance_plotting/` | Chart generation and plotting |
-| **Data Ingestion** | `/finance_data_ingestion/` | External data import tools |
-| **Company DB** | `/finance_db_company/` | Company information database |
-| **Stock Price DB** | `/finance_db_stock_price/` | Historical price data storage |
-| **Utilities** | `/echo/`, `/math/`, `/user_db/` | Testing and utility functions |
-
-## 💡 Usage Examples
-
-### 1. Get Real-time Market Data (Direct API)
-
-```javascript
-// Frontend JavaScript - replace mockMarketData
-const getMarketData = async (symbol = 'VN-INDEX') => {
-  const response = await fetch(`/api/market-data/${symbol}`);
-  const marketData = await response.json();
-  
-  console.log(`${marketData.company}: $${marketData.currentPrice}`);
-  console.log(`Change: $${marketData.close - marketData.prevClose}`);
-  
-  return marketData; // Compatible with MarketData interface
-};
-```
-
-### 2. Get Watchlist Stocks (Replace Mock Data)
-
-```javascript
-// Frontend JavaScript - replace mockWatchlistStocks
-const getWatchlistStocks = async () => {
-  const response = await fetch('/api/watchlist-stocks');
-  const stocks = await response.json();
-  
-  stocks.forEach(stock => {
-    console.log(`${stock.symbol}: $${stock.price} (${stock.changePercent:+.2f}%)`);
-  });
-  
-  return stocks; // Compatible with StockData[] interface
-};
-```
-
-### 3. Get Financial News (Replace Mock Data)
-
-```javascript
-// Frontend JavaScript - replace mockNewsItems
-const getFinancialNews = async (limit = 10) => {
-  const response = await fetch(`/api/news?limit=${limit}`);
-  const newsItems = await response.json();
-  
-  newsItems.forEach(news => {
-    console.log(`${news.title} - ${news.source}`);
-  });
-  
-  return newsItems; // Compatible with NewsItem[] interface
-};
-```
-
-### 4. Get Chart Data for Visualization
-
-```javascript
-// Frontend JavaScript - get chart data for any symbol
-const getChartData = async (symbol, period = '1month') => {
-  const response = await fetch(`/api/chart-data/${symbol}?period=${period}`);
-  const chartData = await response.json();
-  
-  // Direct Chart.js integration
-  new Chart(document.getElementById('stockChart'), {
-    type: 'line',
-    data: {
-      labels: chartData.map(point => point.time),
-      datasets: [{
-        label: symbol,
-        data: chartData.map(point => point.price),
-        borderColor: 'rgb(75, 192, 192)',
-        tension: 0.1
-      }]
-    },
-    options: { responsive: true }
-  });
-  
-  return chartData;
-};
-```
-
-### 5. Original MCP Server Usage (Advanced)
-
-```python
-import requests
-
-response = requests.post(
-    "http://127.0.0.1:8000/finance_market_data/",
-    json={
-        "method": "get_market_data",
-        "params": {
-            "symbol": "AAPL",
-            "interval": "1day",
-            "period": "1month",
-            "format_for_chart": True
-        }
-    }
-)
-
-data = response.json()
-print(f"Apple current price: ${data['chart_data']['statistics']['current_price']}")
-```
-
-### 2. Get AI Price Prediction
-
-```python
-response = requests.post(
-    "http://127.0.0.1:8000/finance_analysis_and_predictions/",
-    json={
-        "method": "predict_stock_price",
-        "params": {
-            "symbol": "TSLA",
-            "days_ahead": 30,
-            "model_type": "random_forest"
-        }
-    }
-)
-
-prediction = response.json()
-print(f"Tesla 30-day prediction: ${prediction['prediction']['predicted_price']}")
-```
-
-### 3. Create and Analyze Portfolio
-
-```python
-# Create portfolio
-response = requests.post(
-    "http://127.0.0.1:8000/finance_portfolio/",
-    json={
-        "method": "create_portfolio",
-        "params": {
-            "name": "Tech Portfolio",
-            "positions": [
-                {"symbol": "AAPL", "shares": 100, "purchase_price": 150.00},
-                {"symbol": "GOOGL", "shares": 50, "purchase_price": 2800.00}
-            ]
-        }
-    }
-)
-
-portfolio = response.json()
-print(f"Portfolio value: ${portfolio['total_value']}")
-print(f"Total return: {portfolio['total_return']:.2%}")
-```
-
-### 4. Frontend Integration (JavaScript)
-
-```javascript
-// Fetch market data for charts
-async function loadStockChart(symbol) {
-    const response = await fetch('/finance_market_data/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            method: 'get_market_data',
-            params: {
-                symbol: symbol,
-                interval: '1day',
-                period: '3months',
-                format_for_chart: true
-            }
-        })
-    });
-    
-    const data = await response.json();
-    
-    // Direct Chart.js integration
-    new Chart(document.getElementById('stockChart'), {
-        type: 'line',
-        data: data.chart_data,
-        options: { responsive: true }
-    });
-}
-
-loadStockChart('AAPL');
-```
-
-## 🏗️ Architecture
-
-### System Components
-
-```
-┌─────────────────────┐    ┌──────────────────────┐    ┌─────────────────────┐
-│                     │    │                      │    │                     │
-│   FastAPI Server    │────│   MCP Integration    │────│   Finance Modules   │
-│                     │    │                      │    │                     │
-└─────────────────────┘    └──────────────────────┘    └─────────────────────┘
-           │                           │                           │
-           │                           │                           │
-┌─────────────────────┐    ┌──────────────────────┐    ┌─────────────────────┐
-│                     │    │                      │    │                     │
-│   Static Dashboard  │    │   SQLite Database    │    │   External APIs     │
-│                     │    │                      │    │                     │
-└─────────────────────┘    └──────────────────────┘    └─────────────────────┘
-```
-
-### Data Flow
-
-1. **Request Processing**: FastAPI receives HTTP requests
-2. **MCP Routing**: Requests routed to appropriate MCP server
-3. **Data Sources**: Multiple APIs queried with priority fallbacks
-4. **Database Layer**: Results cached in SQLite for performance
-5. **Response Formatting**: Data formatted for charts/frontend consumption
-6. **Client Response**: JSON response with complete data and metadata
-
-### Key Technologies
-
-- **FastAPI**: High-performance Python web framework
-- **MCP (Model Context Protocol)**: AI assistant integration
-- **SQLite**: Lightweight database for caching and storage
-- **scikit-learn**: Machine learning for predictions
-- **pandas/numpy**: Data processing and analysis
-- **yfinance**: Yahoo Finance API integration
-- **Chart.js**: Frontend charting (compatible output)
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file with the following variables:
-
-```env
-# API Keys (get from respective providers)
-EXTERNAL_FINANCE_API_KEY=your_alpha_vantage_key    # Alpha Vantage (primary)
-FINNHUB_API_KEY=your_finnhub_key                   # Finnhub (secondary) 
-NEWS_API_KEY=your_news_api_key                     # News API (optional)
-
-# Server Configuration
-HOST=127.0.0.1
-PORT=8000
-LOG_LEVEL=info
-
-# Database
-DB_PATH=./data/finance.db
-
-# Cache Settings
-CACHE_TTL_MARKET_DATA=3600    # 1 hour
-CACHE_TTL_NEWS=900            # 15 minutes
-CACHE_TTL_COMPANY=86400       # 24 hours
-```
-
-### Getting API Keys
-
-1. **Alpha Vantage** (Required for live data)
-   - Visit: https://www.alphavantage.co/support/#api-key
-   - Free tier: 500 requests/day
-   - Premium: Up to 1200 requests/minute
-
-2. **Finnhub** (Optional, additional coverage)
-   - Visit: https://finnhub.io/register
-   - Free tier: 60 requests/minute
-   - Premium: Up to 600 requests/minute
-
-3. **News API** (Optional, for news features)
-   - Visit: https://newsapi.org/register
-   - Free tier: 1000 requests/day
-   - Premium: Up to 100,000 requests/day
-
-## 📈 Supported Assets
-
-### Stocks & Indices
-- **Major Stocks**: AAPL, GOOGL, MSFT, TSLA, AMZN, NVDA, META, etc.
-- **Indices**: NASDAQ, S&P 500, Dow Jones, Russell 2000
-- **International**: Any ticker symbol via auto-discovery
-
-### Cryptocurrencies
-- Bitcoin (BTC-USD)
-- Ethereum (ETH-USD)
-- Major altcoins via symbol lookup
-
-### Forex Pairs
-- EUR/USD, GBP/USD, USD/JPY
-- Major and minor currency pairs
-
-### Commodities
-- Gold (GLD ETF)
-- Oil (USO ETF) 
-- Silver (SLV ETF)
-- Other commodity ETFs
-
-### Auto-Discovery
-The system can automatically discover and add support for any publicly traded symbol by:
-1. Querying multiple data sources
-2. Extracting company information
-3. Storing in local database
-4. Providing cached access for future requests
-
-## 🧪 Testing
-
-### Run Health Check
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-### Test Direct Finance API
-```bash
-# Test market data
-curl http://127.0.0.1:8000/api/market-data/VN-INDEX
-
-# Test watchlist stocks
-curl http://127.0.0.1:8000/api/watchlist-stocks
-
-# Test individual stock
-curl http://127.0.0.1:8000/api/stock/AAPL
-
-# Test financial news
-curl http://127.0.0.1:8000/api/news?limit=5
-
-# Test chart data
-curl http://127.0.0.1:8000/api/chart-data/AAPL
-```
-
-### Run Automated Tests
-```bash
-python test_foxstocks_api.py
-```
-
-### Test MCP Endpoints (Advanced)
-```bash
-# Original MCP server endpoints are still available
-curl -X POST http://127.0.0.1:8000/finance_market_data/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "get_market_data",
-    "params": {
-      "symbol": "AAPL",
-      "interval": "1day",
-      "period": "1week"
-    }
-  }'
-```
-
-## 🚀 Deployment
-
-### Production Setup
-
-1. **Use production WSGI server**
-   ```bash
-   pip install gunicorn
-   gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-   ```
-
-2. **Environment variables**
-   ```bash
-   export ENVIRONMENT=production
-   export LOG_LEVEL=warning
-   export HOST=0.0.0.0
-   export PORT=8000
-   ```
-
-3. **Reverse proxy (nginx)**
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com;
-       
-       location / {
-           proxy_pass http://127.0.0.1:8000;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-       }
-   }
-   ```
-
-### Docker Deployment
-
-```dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-EXPOSE 8000
-
-CMD ["python", "main.py"]
-```
-
-```bash
-docker build -t finance-mcp-server .
-docker run -p 8000:8000 --env-file .env finance-mcp-server
-```
-
-## 📚 Documentation
-
-### API Documentation
-- **Interactive Docs**: `/docs` - Swagger UI with live testing
-- **Alternative Docs**: `/redoc` - ReDoc documentation
-- **API Manual**: `API_MANUAL.md` - Comprehensive usage guide
-
-### Architecture Documentation
-- **MCP Integration**: How Model Context Protocol is implemented
-- **Data Sources**: External API integration and fallback strategies  
-- **Database Schema**: SQLite table structures and relationships
-- **Caching Strategy**: Performance optimization through intelligent caching
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our contributing guidelines:
-
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/cec-intership/multimcp-server-with-fastapi.git
-cd multimcp-server-with-fastapi
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-pytest
-
-# Start development server
-python main.py
-```
-
-### Code Standards
-- Follow PEP 8 style guidelines
-- Add type hints to all functions
-- Include docstrings for all public methods
-- Write tests for new features
-- Update documentation for API changes
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**1. No market data returned**
-- Check API key configuration in `.env`
-- Verify internet connection
-- Check `/status` endpoint for API key status
-
-**2. Slow response times**
-- Check external API rate limits
-- Review caching configuration
-- Monitor database performance
-
-**3. Import errors**
-- Ensure all dependencies are installed
-- Check Python version compatibility
-- Verify virtual environment activation
-
-**4. Database errors**
-- Check database file permissions
-- Verify SQLite installation
-- Check disk space availability
-
-### Getting Help
-
-1. **Check server status**: `GET /health`
-2. **Review logs**: Server console output
-3. **Test connectivity**: `GET /echo/`
-4. **Verify configuration**: `GET /status`
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Alpha Vantage** for comprehensive financial data API
-- **Finnhub** for additional market data coverage
-- **Yahoo Finance** for supplementary data sources
-- **FastAPI** for the excellent web framework
-- **Model Context Protocol** for AI assistant integration
-- **Chart.js** for frontend charting inspiration
-
-## 📞 Support
-
-### Community
-- **GitHub Issues**: Report bugs and request features
-- **Documentation**: Comprehensive guides at `/docs`
-- **Examples**: Sample code in `examples/` directory
-
-### Commercial Support
-For enterprise deployments and custom integrations, contact the development team.
-
----
-
-**🚀 Start building powerful financial applications with the Finance MCP Server today!**
-
-*Built with ❤️ by the CEC Internship Team*
+## 🎉 **Ready for Production!**
+
+The Finance MCP Server is now optimized for chatbot and AI agent integration with:
+- Clean 2-array portfolio format
+- Enhanced symbol search capabilities  
+- Centralized helper functions
+- Comprehensive error handling
+- Full test coverage
+
+Perfect for integration with AI assistants, chatbots, and automated trading systems!

@@ -211,6 +211,17 @@ def get_market_sentiment(query: str = "stock market", limit: int = 20) -> dict:
             "neutral_signals": neutral_count,
             "sentiment_strength": "strong" if confidence > 60 else "moderate" if confidence > 40 else "weak"
         },
+        "news_articles": [
+            {
+                "title": article.get("title", ""),
+                "published_date": article.get("published_date", ""),
+                "source": article.get("source", ""),
+                "sentiment": article.get("sentiment", {}).get("sentiment", "neutral"),
+                "sentiment_score": article.get("sentiment", {}).get("score", 0),
+                "url": article.get("url", "")
+            }
+            for article in articles
+        ],
         "analysis_date": datetime.now().isoformat()
     }
 
