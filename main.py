@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
             finance_db_stock_price.mcp.session_manager.run()
         )
         await stack.enter_async_context(finance_calculations.mcp.session_manager.run())
-        # await stack.enter_async_context(finance_portfolio.mcp.session_manager.run())
+        await stack.enter_async_context(finance_portfolio.mcp.session_manager.run())
         await stack.enter_async_context(
             finance_news_and_insights.mcp.session_manager.run()
         )
@@ -67,11 +67,11 @@ app.mount(
     finance_calculations.mcp.streamable_http_app(),
     name="finance_calculations",
 )
-# app.mount(
-#     "/finance_portfolio/",
-#     finance_portfolio.mcp.streamable_http_app(),
-#     name="finance_portfolio",
-# )
+app.mount(
+    "/finance_portfolio/",
+    finance_portfolio.mcp.streamable_http_app(),
+    name="finance_portfolio",
+)
 app.mount(
     "/finance_news_and_insights/",
     finance_news_and_insights.mcp.streamable_http_app(),
