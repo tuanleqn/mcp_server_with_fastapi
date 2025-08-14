@@ -1,96 +1,84 @@
+#!/usr/bin/env python3
+"""
+Finance DB Company MCP Server
+Enhanced company search with symbol discovery and substring matching
+"""
+
 import os
 from mcp.server.fastmcp import FastMCP
-import psycopg2
-from psycopg2 import Error
 from dotenv import load_dotenv
+
+# Import from local helpers
+from .finance_helpers import search_companies_helper
 
 load_dotenv()
 
-DB_URI = os.getenv("FINANCE_DB_URI", None)
+mcp = FastMCP(name="Finance Company Search Server")
 
-if not DB_URI:
-    raise ValueError("Database URI not found in environment variables.")
-
-mcp = FastMCP(name="Finance MCP Server - About company information")
-
-
-@mcp.tool(description="Get all companies")
-def get_all_companies() -> list:
+@mcp.tool(description="Enhanced company search with symbol discovery and substring matching")
+def search_companies(query: str, limit: int = 10) -> dict:
     """
-    Retrieves all companies from the finance database.
-
-    Returns:
-        list: A list of dictionaries containing company information.
-    """
-
-    try:
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM public.company")
-                rows = cur.fetchall()
-                return [{"symbol": row[0], "name": row[2]} for row in rows]
-    except Error as e:
-        return {"error": str(e)}
-
-
-@mcp.tool(description="Get company by name")
-def get_company_by_name(company_name: str) -> dict:
-    """
-    Retrieves company information by name from the finance database.
-
+    Enhanced company search with symbol discovery and substring matching.
+    
     Args:
-        company_name (str): The name of the company.
-
+        query: Company name or symbol to search for (supports partial matches)
+        limit: Maximum number of results to return (default 10)
+        
     Returns:
-        dict: A dictionary containing company information.
+        Dictionary with search results and company information
+        
+    Example:
+        search_companies("AAPL", limit=5)
     """
     try:
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT * FROM public.company WHERE name = %s", (company_name,)
-                )
-                row = cur.fetchone()
-                if row is None:
-                    return {"error": "Company not found"}
-                return {
-                    "symbol": row[0],
-                    "asset_type": row[1],
-                    "name": row[2],
-                    "description": row[3],
-                }
-    except Error as e:
-        return {"error": str(e)}
+        if not query or not query.strip():
+            return {
+                "success": False,
+                "error": "Query cannot be empty"
+            }
+        
+        # Use centralized helper for enhanced search
+        result = search_companies_helper(query.strip(), limit)
+        
+        if not result.get("success", False):
+            return {
+                "success": False,
+                "error": result.get('error', 'Unknown error occurred')
+            }
+        
+        companies = result.get("companies", [])
+        total_found = result.get("results_found", 0)
+        
+        if total_found == 0:
+            return {
+                "success": True,
+                "message": f"No companies found matching '{query}'",
+                "companies": [],
+                "total_found": 0
+            }
+        
+        # Format results for better readability
+        formatted_companies = []
+        for company in companies:
+            formatted_companies.append({
+                "symbol": company.get('symbol', 'N/A'),
+                "name": company.get('name', 'N/A'),
+                "asset_type": company.get('asset_type', 'N/A'),
+                "description": company.get('description', 'No description available')[:200] + "..." if len(company.get('description', '')) > 200 else company.get('description', 'No description available')
+            })
+        
+        return {
+            "success": True,
+            "query": query,
+            "total_found": total_found,
+            "companies": formatted_companies
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Unexpected error: {str(e)}"
+        }
 
-
-@mcp.tool(description="Get company by symbol")
-def get_company_by_symbol(company_symbol: str) -> dict:
-    """
-    Retrieves company information by symbol from the finance database.
-
-    Args:
-        company_symbol (str): The symbol of the company.
-
-    Returns:
-        dict: A dictionary containing company information.
-    """
-    try:
-        with psycopg2.connect(DB_URI) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT * FROM public.company WHERE symbol = %s", (company_symbol,)
-                )
-                row = cur.fetchone()
-                if row is None:
-                    return {"error": "Company not found"}
-                return {
-                    "symbol": row[0],
-                    "asset_type": row[1],
-                    "name": row[2],
-                    "description": row[3],
-                }
-    except Error as e:
-        return {"error": str(e)}
-
-
-# @mcp.tool(description="Get company by description")
+if __name__ == "__main__":
+    mcp.run()

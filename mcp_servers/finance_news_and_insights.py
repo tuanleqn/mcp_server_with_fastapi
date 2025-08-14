@@ -1,88 +1,275 @@
+"""
+Finance News and Insights Server
+"""
+
 import os
-from mcp.server.fastmcp import FastMCP
 import requests
+from datetime import datetime
+from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Example API key. Replace with a real API service (e.g., Alpha Vantage, Finnhub, NewsAPI.org)
-# Ensure you sign up for an API key and follow their terms of service.
-EXTERNAL_FINANCE_API_KEY = os.getenv("EXTERNAL_FINANCE_API_KEY", None)
-EXTERNAL_FINANCE_NEWS_API_BASE_URL = os.getenv(
-    "EXTERNAL_FINANCE_NEWS_API_BASE_URL", "https://www.alphavantage.co/query"
-)  # Example Alpha Vantage URL
+NEWS_API_KEY = os.getenv("NEWSAPI_KEY")
 
-if not EXTERNAL_FINANCE_API_KEY:
-    raise ValueError(
-        "EXTERNAL_FINANCE_API_KEY not found in environment variables. Please get an API key from a financial data provider."
-    )
-
-mcp = FastMCP(name="Finance MCP Server - News and Insights")
+mcp = FastMCP(name="Finance News and Insights Server")
 
 
-@mcp.tool(
-    description="Retrieves recent financial news for a specific company or general market news."
-)
-def get_financial_news(symbol: str = None, limit: int = 5) -> dict:
-    """
-    Retrieves recent financial news articles. Can be filtered by a specific stock symbol.
+def analyze_sentiment_simple(text: str) -> dict:
+    if not text:
+        return {"sentiment": "neutral", "score": 0, "confidence": 20}
 
-    Args:
-        symbol (str, optional): The stock symbol to fetch news for. If None, fetches general market news.
-        limit (int): The maximum number of news articles to retrieve.
+    text = text.lower()
 
-    Returns:
-        dict: A dictionary containing a list of news articles.
-              Each article includes title, URL, source, and published date.
-              Returns an error if the API call fails or no news is found.
-    """
-    # This implementation is a placeholder for Alpha Vantage's NEWS_SENTIMENT endpoint.
-    # You would need to check their specific documentation for parameters and response format.
-    # Other APIs like NewsAPI.org or Finnhub have different endpoints and parameters.
+    # Financial positive keywords
+    positive_words = [
+        "gain",
+        "gains",
+        "up",
+        "rise",
+        "rises",
+        "rising",
+        "boost",
+        "surge",
+        "rally",
+        "bullish",
+        "growth",
+        "profit",
+        "profits",
+        "earnings",
+        "beat",
+        "strong",
+        "outperform",
+        "buy",
+        "upgrade",
+        "positive",
+        "optimistic",
+        "recover",
+        "recovery",
+    ]
 
-    params = {
-        "function": "NEWS_SENTIMENT",
-        "apikey": EXTERNAL_FINANCE_API_KEY,
-        "topics": "financial_markets",  # General topic
+    # Financial negative keywords
+    negative_words = [
+        "fall",
+        "falls",
+        "falling",
+        "drop",
+        "drops",
+        "decline",
+        "down",
+        "loss",
+        "losses",
+        "bearish",
+        "crash",
+        "plunge",
+        "sell",
+        "downgrade",
+        "negative",
+        "pessimistic",
+        "concern",
+        "concerns",
+        "risk",
+        "risks",
+        "weak",
+        "underperform",
+    ]
+
+    positive_count = sum(1 for word in positive_words if word in text)
+    negative_count = sum(1 for word in negative_words if word in text)
+
+    total_count = positive_count + negative_count
+    if total_count == 0:
+        return {"sentiment": "neutral", "score": 0, "confidence": 20}
+
+    sentiment_score = (positive_count - negative_count) / total_count
+
+    if sentiment_score > 0.3:
+        sentiment = "positive"
+    elif sentiment_score < -0.3:
+        sentiment = "negative"
+    else:
+        sentiment = "neutral"
+
+    confidence = min(80, max(20, abs(sentiment_score) * 100 + total_count * 10))
+
+    return {
+        "sentiment": sentiment,
+        "score": round(sentiment_score, 2),
+        "confidence": round(confidence),
     }
-    if symbol:
-        params["tickers"] = symbol.upper()  # Filter by ticker if provided
+
+
+@mcp.tool(description="Get financial news headlines")
+def get_financial_news(query: str = "financial markets", limit: int = 10) -> dict:
+    limit = min(limit, 50)
+
+    if not NEWS_API_KEY or NEWS_API_KEY.strip() == "":
+        return {
+            "success": False,
+            "error": "NEWS_API_KEY not configured",
+            "query": query,
+            "articles_found": 0,
+            "articles": [],
+        }
 
     try:
-        response = requests.get(EXTERNAL_FINANCE_NEWS_API_BASE_URL, params=params)
-        response.raise_for_status()  # Raise an exception for HTTP errors
-        data = response.json()
+        # Use NewsAPI everything endpoint for better results
+        url = "https://newsapi.org/v2/everything"
+        params = {
+            "q": f"{query} finance OR stock OR market",
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": limit,
+            "apiKey": NEWS_API_KEY.strip(),
+        }
 
-        if "feed" not in data or not data["feed"]:
+        response = requests.get(url, params=params, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+
+            articles = []
+
+            for article in data.get("articles", []):
+                if article.get("title") and article.get("description"):
+                    text_for_analysis = f"{article['title']} {article['description']}"
+                    sentiment = analyze_sentiment_simple(text_for_analysis)
+
+                    articles.append(
+                        {
+                            "title": article["title"],
+                            "description": article["description"],
+                            "url": article.get("url", ""),
+                            "published_at": article.get("publishedAt", ""),
+                            "source": article.get("source", {}).get("name", "Unknown"),
+                            "sentiment": sentiment,
+                        }
+                    )
+
             return {
-                "error": f"No news found for {symbol if symbol else 'general market'}."
+                "success": True,
+                "query": query,
+                "articles_found": len(articles),
+                "articles": articles,
+                "retrieved_at": datetime.now().isoformat(),
+                "source": "newsapi",
+            }
+        else:
+            error_msg = f"NewsAPI error: {response.status_code}"
+            try:
+                error_detail = response.json().get("message", "")
+                if error_detail:
+                    error_msg += f" - {error_detail}"
+            except:
+                pass
+
+            return {
+                "success": False,
+                "error": error_msg,
+                "query": query,
+                "articles_found": 0,
+                "articles": [],
             }
 
-        news_articles = []
-        for article in data["feed"][:limit]:
-            news_articles.append(
-                {
-                    "title": article.get("title"),
-                    "url": article.get("url"),
-                    "source": article.get("source"),
-                    "published_date": article.get(
-                        "time_published"
-                    ),  # Alpha Vantage uses time_published
-                }
-            )
-        return {"articles": news_articles}
-
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Failed to fetch news from external API: {str(e)}"}
     except Exception as e:
-        return {"error": f"Error processing news data: {str(e)}"}
+        return {
+            "success": False,
+            "error": f"Failed to fetch news: {str(e)}",
+            "query": query,
+            "articles_found": 0,
+            "articles": [],
+        }
 
 
-# You could add a sentiment analysis tool here if the external API provides it,
-# or integrate with an NLP library (like NLTK, spaCy, or huggingface transformers)
-# to analyze the sentiment of fetched news article texts.
-# @mcp.tool(description="Analyzes the sentiment of recent news for a stock.")
-# def analyze_news_sentiment(symbol: str) -> dict:
-#    # Implementation would involve fetching news using get_financial_news
-#    # then passing article text through a sentiment analysis model.
-#    pass
+@mcp.tool(description="Analyze market sentiment from news")
+def get_market_sentiment(query: str = "stock market", limit: int = 20) -> dict:
+    news_result = get_financial_news(query, limit)
+
+    if not news_result.get("success"):
+        return news_result
+
+    articles = news_result.get("articles", [])
+    if not articles:
+        return {
+            "success": False,
+            "error": "No articles found for sentiment analysis",
+            "query": query,
+        }
+
+    # Aggregate sentiment scores
+    sentiments = []
+    positive_count = 0
+    negative_count = 0
+    neutral_count = 0
+
+    for article in articles:
+        sentiment_data = article.get("sentiment", {})
+        sentiment = sentiment_data.get("sentiment", "neutral")
+        score = sentiment_data.get("score", 0)
+
+        sentiments.append(score)
+
+        if sentiment == "positive":
+            positive_count += 1
+        elif sentiment == "negative":
+            negative_count += 1
+        else:
+            neutral_count += 1
+
+    # Calculate overall sentiment
+    if sentiments:
+        avg_score = sum(sentiments) / len(sentiments)
+        if avg_score > 0.2:
+            overall_sentiment = "positive"
+        elif avg_score < -0.2:
+            overall_sentiment = "negative"
+        else:
+            overall_sentiment = "neutral"
+    else:
+        avg_score = 0
+        overall_sentiment = "neutral"
+
+    # Calculate confidence based on consensus
+    total_articles = len(articles)
+    max_category = max(positive_count, negative_count, neutral_count)
+    confidence = (max_category / total_articles * 100) if total_articles > 0 else 0
+
+    return {
+        "success": True,
+        "query": query,
+        "overall_sentiment": overall_sentiment,
+        "sentiment_score": round(avg_score, 3),
+        "confidence": round(confidence, 1),
+        "sentiment_breakdown": {
+            "positive": positive_count,
+            "negative": negative_count,
+            "neutral": neutral_count,
+            "total_articles": total_articles,
+        },
+        "market_indicators": {
+            "bullish_signals": positive_count,
+            "bearish_signals": negative_count,
+            "neutral_signals": neutral_count,
+            "sentiment_strength": "strong"
+            if confidence > 60
+            else "moderate"
+            if confidence > 40
+            else "weak",
+        },
+        "news_articles": [
+            {
+                "title": article.get("title", ""),
+                "published_date": article.get("published_date", ""),
+                "source": article.get("source", ""),
+                "sentiment": article.get("sentiment", {}).get("sentiment", "neutral"),
+                "sentiment_score": article.get("sentiment", {}).get("score", 0),
+                "url": article.get("url", ""),
+            }
+            for article in articles
+        ],
+        "analysis_date": datetime.now().isoformat(),
+    }
+
+
+if __name__ == "__main__":
+    mcp.run()
